@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+python-jose[cryptography]
+passlib[bcrypt]
+python-dotenv
+google-generativeai
+pillow
+python-multipart
+email-validator
+pandas
+numpy
+matplotlib
+seaborn
+scikit-learn
