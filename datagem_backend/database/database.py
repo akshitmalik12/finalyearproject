@@ -1,21 +1,42 @@
 import os
+from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 # =====================
-# HARDCODED DATABASE URL (INSECURE)
+# DATABASE URL CONFIGURATION
 # =====================
-# This is the "address" for the PostgreSQL database you started with Docker.
-SQLALCHEMY_DATABASE_URL = "postgresql://datagem_user:datagem_pass@localhost:5432/datagem_db"
+# Priority:
+# 1. DATABASE_URL environment variable (for production/PostgreSQL)
+# 2. Default to SQLite for local development
 # =====================
+
+# Get the base directory (datagem_backend folder)
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Check for DATABASE_URL environment variable first
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+# If no DATABASE_URL is set, use SQLite for local development
+if not DATABASE_URL:
+    # SQLite database file path (relative to datagem_backend directory)
+    db_path = BASE_DIR / "datagem.db"
+    DATABASE_URL = f"sqlite:///{db_path}"
+    print(f"Using SQLite database at: {db_path}")
+else:
+    print(f"Using database from DATABASE_URL environment variable")
 
 # 1. Create the main "engine" (the power plug)
-# We check if the URL was set, just in case.
-if not SQLALCHEMY_DATABASE_URL:
-    print("Error: DATABASE_URL is not set directly in database/database.py")
-    raise ValueError("DATABASE_URL is not set")
-
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+# For SQLite, we need to add check_same_thread=False for FastAPI compatibility
+if DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        echo=False  # Set to True for SQL query logging
+    )
+else:
+    # For PostgreSQL and other databases
+    engine = create_engine(DATABASE_URL, echo=False)
 
 # 2. Create a "factory" that makes new database conversations
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
