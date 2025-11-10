@@ -6,6 +6,9 @@ const PROMPT_CATEGORIES = {
   analysis: {
     name: 'Analysis',
     icon: '📊',
+    shape: 'rounded-lg', // Less rounded, angular
+    size: 'px-7 py-4', // Large size
+    activeGradient: 'from-blue-500/30 to-cyan-500/30', // Blue gradient when active
     prompts: [
       'Show me a summary of the dataset',
       'What are the correlations between columns?',
@@ -18,6 +21,9 @@ const PROMPT_CATEGORIES = {
   visualization: {
     name: 'Visualization',
     icon: '📈',
+    shape: 'rounded-3xl', // Very rounded, pill-like
+    size: 'px-8 py-4', // Extra large size
+    activeGradient: 'from-purple-500/30 to-pink-500/30', // Purple-pink gradient when active
     prompts: [
       'Create a visualization',
       'Plot a histogram',
@@ -30,6 +36,9 @@ const PROMPT_CATEGORIES = {
   modeling: {
     name: 'Modeling',
     icon: '🤖',
+    shape: 'rounded-none', // Square, angular
+    size: 'px-7 py-4', // Large size
+    activeGradient: 'from-green-500/30 to-emerald-500/30', // Green gradient when active
     prompts: [
       'Build a predictive model',
       'Run a linear regression',
@@ -109,7 +118,7 @@ export default function PromptSuggestions({ dataset, onSelectPrompt }) {
   const displayPrompts = showFavorites 
     ? favoritePrompts 
     : activeCategory === 'contextual' 
-      ? getContextualPrompts()
+      ? (dataset ? getContextualPrompts() : [])
       : PROMPT_CATEGORIES[activeCategory]?.prompts || [];
 
   return (
@@ -119,7 +128,7 @@ export default function PromptSuggestions({ dataset, onSelectPrompt }) {
       className="max-w-4xl mx-auto mt-3"
     >
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-medium text-gray-700 dark:text-gray-300">
+        <p className="text-xs font-medium text-white/80">
           💡 {showFavorites ? 'Favorite Prompts' : 'Suggested Prompts'}
         </p>
         <div className="flex items-center gap-2">
@@ -128,10 +137,10 @@ export default function PromptSuggestions({ dataset, onSelectPrompt }) {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowFavorites(!showFavorites)}
-              className={`px-2 py-1 text-xs rounded transition-colors ${
+              className={`px-3 py-1.5 text-xs rounded-xl backdrop-blur-xl transition-all duration-300 ${
                 showFavorites
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  ? 'bg-white/20 text-white border border-white/30 shadow-lg'
+                  : 'bg-white/10 text-white/80 border border-white/20 hover:bg-white/15 hover:border-white/30'
               }`}
             >
               ⭐ Favorites ({favoritePrompts.length})
@@ -140,36 +149,42 @@ export default function PromptSuggestions({ dataset, onSelectPrompt }) {
         </div>
       </div>
 
-      {/* Category Tabs */}
+      {/* Category Tabs - Bigger with Different Shapes */}
       {!showFavorites && (
-        <div className="flex flex-wrap gap-2 mb-3">
-          {dataset && (
+        <div className="flex flex-wrap gap-3 mb-4">
+          {/* Contextual button - always visible */}
             <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setActiveCategory('contextual')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                activeCategory === 'contextual'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+            whileHover={dataset ? { scale: 1.08, y: -2 } : {}}
+            whileTap={dataset ? { scale: 0.95 } : {}}
+            onClick={() => dataset && setActiveCategory('contextual')}
+            disabled={!dataset}
+            className={`px-8 py-4 text-base font-bold rounded-full backdrop-blur-xl transition-all duration-300 ${
+              !dataset
+                ? 'bg-white/5 text-white/40 border-2 border-white/10 cursor-not-allowed opacity-50'
+                : activeCategory === 'contextual'
+                ? 'bg-gradient-to-r from-indigo-500/30 to-purple-500/30 text-white border-2 border-white/40 shadow-xl scale-105'
+                : 'bg-white/10 text-white/80 border-2 border-white/20 hover:bg-white/15 hover:border-white/30 shadow-lg hover:shadow-xl'
               }`}
-            >
-              🎯 Contextual
+            title={!dataset ? "Upload a dataset to enable contextual prompts" : "Contextual prompts based on your dataset"}
+          >
+            <span className="text-xl mr-2">🎯</span>
+            Contextual
+            {!dataset && <span className="ml-2 text-xs">(requires dataset)</span>}
             </motion.button>
-          )}
           {Object.entries(PROMPT_CATEGORIES).map(([key, category]) => (
             <motion.button
               key={key}
-              whileHover={{ scale: 1.05 }}
+              whileHover={{ scale: 1.08, y: -2 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setActiveCategory(key)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              className={`${category.size} text-base font-bold ${category.shape} backdrop-blur-xl transition-all duration-300 ${
                 activeCategory === key
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  ? `bg-gradient-to-r ${category.activeGradient} text-white border-2 border-white/40 shadow-xl scale-105`
+                  : 'bg-white/10 text-white/80 border-2 border-white/20 hover:bg-white/15 hover:border-white/30 shadow-lg hover:shadow-xl'
               }`}
             >
-              {category.icon} {category.name}
+              <span className="text-xl mr-2">{category.icon}</span>
+              {category.name}
             </motion.button>
           ))}
         </div>
@@ -184,7 +199,16 @@ export default function PromptSuggestions({ dataset, onSelectPrompt }) {
           exit={{ opacity: 0, y: -10 }}
           className="flex flex-wrap gap-2"
         >
-          {displayPrompts.length > 0 ? (
+          {activeCategory === 'contextual' && !dataset ? (
+            <div className="w-full py-8 text-center">
+              <p className="text-white/60 text-sm mb-2">
+                📊 Upload a CSV dataset to see contextual prompts
+              </p>
+              <p className="text-white/40 text-xs">
+                Contextual prompts are generated based on your dataset's columns and structure
+              </p>
+            </div>
+          ) : displayPrompts.length > 0 ? (
             displayPrompts.map((prompt, idx) => (
               <motion.div
                 key={prompt}
@@ -196,7 +220,7 @@ export default function PromptSuggestions({ dataset, onSelectPrompt }) {
               >
                 <button
                   onClick={() => handlePromptClick(prompt)}
-                  className="px-3 py-1.5 text-xs font-medium bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all border border-indigo-200 dark:border-indigo-800 hover:border-indigo-300 dark:hover:border-indigo-700 whitespace-nowrap cursor-pointer"
+                  className="px-4 py-2 text-xs font-medium backdrop-blur-xl bg-white/10 dark:bg-white/10 text-white/90 dark:text-white/90 rounded-xl hover:bg-white/15 dark:hover:bg-white/15 transition-all duration-300 border border-white/20 dark:border-white/20 hover:border-white/30 dark:hover:border-white/30 shadow-lg hover:shadow-xl whitespace-nowrap cursor-pointer"
                 >
                   {prompt}
                 </button>
@@ -218,7 +242,7 @@ export default function PromptSuggestions({ dataset, onSelectPrompt }) {
               </motion.div>
             ))
           ) : (
-            <p className="text-xs text-gray-500 dark:text-gray-400 italic">
+            <p className="text-xs text-white/60 italic">
               {showFavorites ? 'No favorite prompts yet. Click the star icon on any prompt to add it to favorites.' : 'No prompts available.'}
             </p>
           )}
@@ -230,9 +254,9 @@ export default function PromptSuggestions({ dataset, onSelectPrompt }) {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700"
+          className="mt-4 pt-4 border-t border-white/10"
         >
-          <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+          <p className="text-xs font-medium text-white/80 mb-2">
             🕒 Recent Prompts
           </p>
           <div className="flex flex-wrap gap-2">
@@ -245,7 +269,7 @@ export default function PromptSuggestions({ dataset, onSelectPrompt }) {
                 whileHover={{ scale: 1.05, y: -2 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handlePromptClick(prompt)}
-                className="px-3 py-1.5 text-xs bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-gray-700 whitespace-nowrap"
+                className="px-3 py-1.5 text-xs backdrop-blur-xl bg-white/10 text-white/80 rounded-xl hover:bg-white/15 transition-all duration-300 border border-white/20 hover:border-white/30 shadow-md whitespace-nowrap"
               >
                 {prompt}
               </motion.button>

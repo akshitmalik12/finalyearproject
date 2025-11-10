@@ -9,6 +9,7 @@ import {
   flexRender,
 } from '@tanstack/react-table';
 import { useTheme } from '../contexts/ThemeContext';
+import { formatColumnName } from '../utils/formatColumnName';
 
 export default function EnhancedTableViewer({ data, columns: initialColumns }) {
   const [sorting, setSorting] = useState([]);
@@ -38,7 +39,7 @@ export default function EnhancedTableViewer({ data, columns: initialColumns }) {
     
     return Object.keys(tableData[0]).map((key) => ({
       accessorKey: key,
-      header: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' '),
+      header: formatColumnName(key),
       cell: (info) => {
         const value = info.getValue();
         if (value === null || value === undefined) {
@@ -123,10 +124,15 @@ export default function EnhancedTableViewer({ data, columns: initialColumns }) {
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden shadow-lg"
+      whileHover={{ scale: 1.01 }}
+      transition={{ duration: 0.2 }}
+      className="relative group rounded-xl overflow-hidden backdrop-blur-xl bg-white/80 dark:bg-gray-900/80 border border-white/20 dark:border-gray-700/50 shadow-glass dark:shadow-glass-dark"
     >
+      {/* Gradient overlay on hover */}
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-indigo-500/5 group-hover:via-purple-500/5 group-hover:to-pink-500/5 transition-all duration-500 pointer-events-none rounded-xl z-0" />
+      
       {/* Toolbar */}
-      <div className="px-4 py-3 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-gray-800 dark:to-gray-750 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-wrap gap-3">
+      <div className="relative px-4 py-3 bg-gradient-to-r from-indigo-50/90 via-purple-50/90 to-pink-50/90 dark:from-gray-800/90 dark:via-gray-850/90 dark:to-gray-800/90 backdrop-blur-sm border-b border-white/20 dark:border-gray-700/30 flex items-center justify-between flex-wrap gap-3 z-10">
         <div className="flex items-center gap-3 flex-1 min-w-[200px]">
           <div className="relative flex-1 max-w-md">
             <svg
@@ -141,7 +147,7 @@ export default function EnhancedTableViewer({ data, columns: initialColumns }) {
               value={globalFilter ?? ''}
               onChange={(e) => setGlobalFilter(e.target.value)}
               placeholder="Search table..."
-              className="w-full pl-10 pr-4 py-2 text-sm border-2 border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+              className="w-full pl-10 pr-4 py-2 text-sm border-2 border-white/30 dark:border-gray-600/50 rounded-lg backdrop-blur-sm bg-white/70 dark:bg-gray-700/70 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 outline-none transition-all shadow-sm"
             />
           </div>
           <span className="text-sm font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
@@ -159,12 +165,12 @@ export default function EnhancedTableViewer({ data, columns: initialColumns }) {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="px-3 py-1.5 text-xs font-medium bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+              className="px-3 py-1.5 text-xs font-medium backdrop-blur-sm bg-white/70 dark:bg-gray-700/70 border border-white/30 dark:border-gray-600/50 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-white/90 dark:hover:bg-gray-700/90 transition-all shadow-sm"
               title="Toggle columns"
             >
               👁️ Columns
             </motion.button>
-            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-20 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+            <div className="absolute right-0 mt-2 w-48 backdrop-blur-xl bg-white/90 dark:bg-gray-800/90 border border-white/20 dark:border-gray-700/50 rounded-lg shadow-glass dark:shadow-glass-dark z-20 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
               <div className="p-2 max-h-64 overflow-y-auto">
                 {table.getAllColumns().filter(col => col.getCanHide()).map((column) => (
                   <label key={column.id} className="flex items-center gap-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
@@ -186,19 +192,19 @@ export default function EnhancedTableViewer({ data, columns: initialColumns }) {
           </div>
           {selectedRows.length > 0 && (
             <motion.button
-              whileHover={{ scale: 1.05 }}
+              whileHover={{ scale: 1.05, boxShadow: '0 0 20px rgba(34, 197, 94, 0.4)' }}
               whileTap={{ scale: 0.95 }}
               onClick={exportSelected}
-              className="px-3 py-1.5 text-xs font-medium bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition-colors"
+              className="px-3 py-1.5 text-xs font-medium bg-gradient-to-r from-green-600 to-emerald-600 dark:from-green-700 dark:to-emerald-700 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 dark:hover:from-green-600 dark:hover:to-emerald-600 transition-all duration-200 shadow-md hover:shadow-lg backdrop-blur-sm"
             >
               📥 Export Selected ({selectedRows.length})
             </motion.button>
           )}
           <motion.button
-            whileHover={{ scale: 1.05 }}
+            whileHover={{ scale: 1.05, boxShadow: '0 0 20px rgba(99, 102, 241, 0.4)' }}
             whileTap={{ scale: 0.95 }}
             onClick={exportSelected}
-            className="px-3 py-1.5 text-xs font-medium bg-indigo-600 dark:bg-indigo-700 text-white rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors"
+            className="px-3 py-1.5 text-xs font-medium bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-700 dark:to-purple-700 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 dark:hover:from-indigo-600 dark:hover:to-purple-600 transition-all duration-200 shadow-md hover:shadow-lg backdrop-blur-sm"
           >
             📥 Export CSV
           </motion.button>
@@ -206,9 +212,9 @@ export default function EnhancedTableViewer({ data, columns: initialColumns }) {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
+      <div className="relative overflow-x-auto max-h-[70vh] overflow-y-auto z-10">
+        <table className="min-w-full divide-y divide-white/10 dark:divide-gray-700/30">
+          <thead className="backdrop-blur-sm bg-white/60 dark:bg-gray-800/60 sticky top-0 z-10 border-b border-white/20 dark:border-gray-700/30">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {/* Select All Checkbox */}

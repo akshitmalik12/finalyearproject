@@ -42,136 +42,145 @@ export default function About() {
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-6 py-12">
-        <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-8">About 💎 DataGem</h1>
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-8 mb-8"></div>
-
-        <section className="mb-12">
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">What is DataGem?</h2>
-          <p className="text-lg text-gray-700 dark:text-gray-300 mb-4">
-            <strong>DataGem is your AI-Powered Data Analyst.</strong>
+      <div className="max-w-4xl mx-auto px-6 py-16">
+        {/* Hero Section */}
+        <div className="text-center mb-16">
+          <h1 className="text-5xl font-bold text-gray-900 dark:text-white mb-4">
+            💎 DataGem
+          </h1>
+          <p className="text-xl text-gray-600 dark:text-gray-400 mb-8">
+            AI-Powered Data Analyst Platform
           </p>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
-            It's an intelligent data analysis and visualization chatbot designed to make complex data insights accessible to everyone. Powered by Google's cutting-edge <strong>Gemini 2.0 Flash</strong>, DataGem enables users to:
-          </p>
-          <ul className="list-disc list-inside space-y-2 text-gray-600 dark:text-gray-400 mb-4">
-            <li><strong>Upload Datasets:</strong> Instantly load and profile CSV files.</li>
-            <li><strong>Ask Natural Language Questions:</strong> No SQL or Python required. Just ask, "What are the sales trends?"</li>
-            <li><strong>Generate Custom Code:</strong> DataGem writes and executes Python code for analysis.</li>
-            <li><strong>Create Interactive Visualizations:</strong> Generate histograms, scatter plots, and more on the fly.</li>
-            <li><strong>Build Predictive Models:</strong> Ask DataGem to "build a classification model" or "run a time-series forecast" using sklearn and tensorflow.</li>
-          </ul>
-          <p className="text-gray-600 dark:text-gray-400">
-            DataGem is designed to be a powerful co-pilot for analysts, students, and anyone curious about their data.
-          </p>
-        </section>
+          <div className="w-24 h-1 bg-indigo-600 dark:bg-indigo-400 mx-auto rounded-full"></div>
+        </div>
 
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-8 mb-8"></div>
-
-        <section className="mb-12">
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">About the Creator: Akshit Malik</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Akshit developed DataGem with a vision to democratize data analytics, making powerful insights available without requiring deep technical coding knowledge. His goal was to build an intelligent assistant that not only answers questions but proactively helps users explore, visualize, and predict future trends from their data.
-          </p>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
-            This project showcases Akshit's skills in:
-          </p>
-          <ul className="list-disc list-inside space-y-2 text-gray-600 dark:text-gray-400 mb-4">
-            <li>Full-Stack AI Development</li>
-            <li>Large Language Model (LLM) Integration with Gemini</li>
-            <li>Machine Learning & Deep Learning (ML/CNN) Implementation</li>
-            <li>Secure API & Backend Design</li>
-            <li>Creating Intuitive User Experiences (UI/UX) for Complex Tools</li>
-          </ul>
-          <div className="mt-6">
-            <p className="text-gray-600 dark:text-gray-400 mb-2"><strong>Connect with Akshit:</strong></p>
-            <ul className="space-y-1 text-gray-600 dark:text-gray-400">
-              <li>
-                <strong>LinkedIn:</strong>{' '}
-                <a
-                  href="https://www.linkedin.com/in/akshit-malik-718b3a212/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 underline"
-                >
-                  https://www.linkedin.com/in/akshit-malik-718b3a212/
-                </a>
-              </li>
-              <li>
-                <strong>E-Mail:</strong>{' '}
-                <a
-                  href="mailto:aakshitmalik@gmail.com"
-                  className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 underline"
-                >
-                  aakshitmalik@gmail.com
-                </a>
-              </li>
-            </ul>
-          </div>
-        </section>
-
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-8 mb-8"></div>
-
-        <section className="mb-12">
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6">Technology Stack</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
-            <div className="text-center">
-              <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                <div className="text-2xl mb-2">⚡</div>
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">React</p>
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                <div className="text-2xl mb-2">🤖</div>
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Gemini 2.0</p>
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                <div className="text-2xl mb-2">🐍</div>
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Python</p>
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                <div className="text-2xl mb-2">📊</div>
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Pandas</p>
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                <div className="text-2xl mb-2">🧠</div>
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Scikit-learn</p>
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                <div className="text-2xl mb-2">🔷</div>
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">TensorFlow</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-8 mb-8"></div>
-
-        <section className="mb-12">
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Privacy & Security Statement</h3>
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
-            <p className="text-gray-700 dark:text-gray-300 mb-2">
-              DataGem prioritizes your data security and privacy.
+        {/* Main Content */}
+        <div className="space-y-12">
+          {/* What is DataGem */}
+          <section className="text-center">
+            <h2 className="text-3xl font-semibold text-gray-900 dark:text-white mb-6">
+              What is DataGem?
+            </h2>
+            <p className="text-lg text-gray-700 dark:text-gray-300 mb-6 max-w-3xl mx-auto leading-relaxed">
+              <strong className="text-indigo-600 dark:text-indigo-400">DataGem</strong> is an intelligent data analysis and visualization platform powered by Google's <strong>Gemini 2.0 Flash</strong>. 
+              It makes complex data insights accessible to everyone through natural language conversations.
             </p>
-            <ul className="list-disc list-inside space-y-1 text-gray-600 dark:text-gray-400">
-              <li>Your API key is stored securely and is never exposed to the frontend.</li>
-              <li>Uploaded data is processed in an isolated environment for the duration of your session.</li>
-              <li>Data is <strong>not</strong> shared, sold, or used for model training.</li>
-              <li>This project is for demonstration purposes. Please do not upload highly sensitive production data.</li>
+            <div className="grid md:grid-cols-2 gap-6 mt-8 max-w-2xl mx-auto">
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                <div className="text-3xl mb-3">📊</div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Data Analysis</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Upload datasets and ask questions in plain English. No SQL or Python required.
+                </p>
+              </div>
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                <div className="text-3xl mb-3">📈</div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Visualizations</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Generate interactive charts, plots, and graphs automatically from your data.
+                </p>
+              </div>
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                <div className="text-3xl mb-3">🤖</div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">AI-Powered</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Built with cutting-edge AI to understand context and provide intelligent insights.
+                </p>
+              </div>
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                <div className="text-3xl mb-3">🔮</div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Predictive Models</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Build machine learning models for classification, regression, and forecasting.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Technology Stack */}
+          <section className="text-center">
+            <h2 className="text-3xl font-semibold text-gray-900 dark:text-white mb-8">
+              Technology Stack
+            </h2>
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-6 max-w-3xl mx-auto">
+              {[
+                { icon: '⚡', name: 'React' },
+                { icon: '🤖', name: 'Gemini 2.0' },
+                { icon: '🐍', name: 'Python' },
+                { icon: '📊', name: 'Pandas' },
+                { icon: '🧠', name: 'Scikit-learn' },
+                { icon: '🔷', name: 'TensorFlow' }
+              ].map((tech, idx) => (
+                <div key={idx} className="text-center">
+                  <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
+                    <div className="text-3xl mb-2">{tech.icon}</div>
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{tech.name}</p>
+              </div>
+            </div>
+              ))}
+          </div>
+        </section>
+
+          {/* Creator */}
+          <section className="text-center">
+            <h2 className="text-3xl font-semibold text-gray-900 dark:text-white mb-6">
+              About the Creator
+            </h2>
+            <p className="text-lg text-gray-700 dark:text-gray-300 mb-8 max-w-2xl mx-auto leading-relaxed">
+              Developed by <strong className="text-indigo-600 dark:text-indigo-400">Akshit Malik</strong> with a vision to democratize data analytics, 
+              making powerful insights available without requiring deep technical knowledge.
+            </p>
+            <div className="flex justify-center gap-6 mt-8">
+              <a
+                href="https://www.linkedin.com/in/akshit-malik-718b3a212/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                </svg>
+                LinkedIn
+              </a>
+              <a
+                href="mailto:aakshitmalik@gmail.com"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Email
+              </a>
+            </div>
+          </section>
+
+          {/* Privacy */}
+          <section className="text-center">
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-8 max-w-2xl mx-auto">
+              <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
+                Privacy & Security
+              </h3>
+              <p className="text-gray-700 dark:text-gray-300 mb-4">
+                Your data security and privacy are our top priorities.
+            </p>
+              <ul className="text-left text-gray-600 dark:text-gray-400 space-y-2 max-w-md mx-auto">
+                <li className="flex items-start gap-2">
+                  <span className="text-green-600 dark:text-green-400 mt-1">✓</span>
+                  <span>API keys stored securely and never exposed</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-600 dark:text-green-400 mt-1">✓</span>
+                  <span>Data processed in isolated environments</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-600 dark:text-green-400 mt-1">✓</span>
+                  <span>No data sharing, selling, or model training</span>
+                </li>
             </ul>
           </div>
         </section>
+        </div>
       </div>
     </div>
   );
 }
-

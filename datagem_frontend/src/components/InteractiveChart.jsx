@@ -128,14 +128,18 @@ export default function InteractiveChart({ imageSrc, data, chartType = 'auto', t
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
+        whileHover={{ scale: 1.01 }}
         transition={{ duration: 0.3 }}
-        className="relative group rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all bg-white dark:bg-gray-800"
+        className="relative group rounded-xl overflow-hidden backdrop-blur-xl bg-white/80 dark:bg-gray-900/80 border border-white/20 dark:border-gray-700/50 shadow-glass dark:shadow-glass-dark"
         onHoverStart={() => setIsHovered(true)}
         onHoverEnd={() => setIsHovered(false)}
       >
+        {/* Gradient overlay on hover */}
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-indigo-500/5 group-hover:via-purple-500/5 group-hover:to-pink-500/5 transition-all duration-500 pointer-events-none rounded-xl z-0" />
+        
         {title && (
-          <div className="px-4 py-3 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-gray-800 dark:to-gray-750 border-b border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
+          <div className="relative px-4 py-3 bg-gradient-to-r from-indigo-50/90 via-purple-50/90 to-pink-50/90 dark:from-gray-800/90 dark:via-gray-850/90 dark:to-gray-800/90 backdrop-blur-sm border-b border-white/20 dark:border-gray-700/30">
+            <h3 className="text-lg font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">{title}</h3>
           </div>
         )}
         <img
@@ -408,13 +412,17 @@ export default function InteractiveChart({ imageSrc, data, chartType = 'auto', t
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
+        whileHover={{ scale: 1.01 }}
         transition={{ duration: 0.4, type: 'spring', stiffness: 300 }}
-        className="relative group rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all bg-white dark:bg-gray-800 p-4"
+        className="relative group rounded-xl overflow-hidden backdrop-blur-xl bg-white/80 dark:bg-gray-900/80 border border-white/20 dark:border-gray-700/50 shadow-glass dark:shadow-glass-dark p-4"
         onHoverStart={() => setIsHovered(true)}
         onHoverEnd={() => setIsHovered(false)}
       >
+        {/* Gradient overlay on hover */}
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-indigo-500/5 group-hover:via-purple-500/5 group-hover:to-pink-500/5 transition-all duration-500 pointer-events-none rounded-xl z-0" />
+        
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="relative flex items-center justify-between mb-4 z-10">
           {title && (
             <h3 className="text-lg font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
               {title}
@@ -422,7 +430,7 @@ export default function InteractiveChart({ imageSrc, data, chartType = 'auto', t
           )}
           <div className="flex items-center gap-2">
             {/* Chart Type Selector */}
-            <div className="flex gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <div className="flex gap-1 backdrop-blur-sm bg-white/50 dark:bg-gray-800/50 rounded-lg p-1 border border-white/20 dark:border-gray-700/30">
               {['line', 'bar', 'area', 'pie', 'scatter'].filter(type => 
                 type !== 'pie' || dataKeys.length === 1
               ).map((type) => (
@@ -434,10 +442,10 @@ export default function InteractiveChart({ imageSrc, data, chartType = 'auto', t
                     setCurrentChartType(type);
                     setBrushData(null);
                   }}
-                  className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                  className={`px-3 py-1 text-xs font-medium rounded-lg transition-all duration-200 ${
                     finalChartType === type
-                      ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md hover:shadow-lg'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-white/80 dark:hover:bg-gray-700/80'
                   }`}
                   title={`Switch to ${type} chart`}
                 >

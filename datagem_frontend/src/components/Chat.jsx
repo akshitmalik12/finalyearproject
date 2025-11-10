@@ -11,7 +11,16 @@ import CodeBlock from './CodeBlock';
 import PromptSuggestions from './PromptSuggestions';
 import { MessageSkeleton, CodeBlockSkeleton, ProgressIndicator } from './LoadingSkeleton';
 import EnhancedTableViewer from './EnhancedTableViewer';
+import ChatHistory from './ChatHistory';
 import { parseMarkdownTable } from '../utils/parseMarkdownTable';
+import { formatColumnName, getColumnAbbreviation } from '../utils/formatColumnName';
+import { 
+  generateDatasetId, 
+  getChatSession, 
+  saveChatSession, 
+  getCurrentDatasetId,
+  setCurrentDatasetId 
+} from '../utils/chatHistory';
 
 export default function Chat() {
   const [messages, setMessages] = useState([]);
@@ -27,6 +36,9 @@ export default function Chat() {
   const [expandedCodeBlocks, setExpandedCodeBlocks] = useState({});
   const [expandedOutputs, setExpandedOutputs] = useState({});
   const [executionStep, setExecutionStep] = useState(null);
+  const [currentDatasetId, setCurrentDatasetIdState] = useState(null);
+  const [showChatHistory, setShowChatHistory] = useState(false);
+  const [datasetFilename, setDatasetFilename] = useState(null);
   const messagesEndRef = useRef(null);
   const { theme, toggleTheme } = useTheme();
   
@@ -52,6 +64,25 @@ export default function Chat() {
   // Load persisted state from localStorage on mount
   useEffect(() => {
     try {
+      // Try to load current dataset ID
+      const savedDatasetId = getCurrentDatasetId();
+      if (savedDatasetId) {
+        // Load chat session for this dataset
+        const session = getChatSession(savedDatasetId);
+        if (session) {
+          setCurrentDatasetIdState(savedDatasetId);
+          setDataset(session.dataset);
+          setDatasetProfile(session.datasetProfile);
+          setMessages(session.messages || []);
+          setDatasetFilename(session.filename || null);
+          if (session.showSidebar !== undefined) {
+            setShowSidebar(session.showSidebar);
+          }
+          return;
+        }
+      }
+
+      // Fallback to old localStorage format for backward compatibility
       const savedMessages = localStorage.getItem('datagem_messages');
       const savedDataset = localStorage.getItem('datagem_dataset');
       const savedDatasetProfile = localStorage.getItem('datagem_dataset_profile');
@@ -74,37 +105,20 @@ export default function Chat() {
     }
   }, []);
 
-  // Persist messages to localStorage
+  // Persist chat session when dataset, messages, or profile changes
   useEffect(() => {
-    if (messages.length > 0) {
-      localStorage.setItem('datagem_messages', JSON.stringify(messages));
-    } else {
-      localStorage.removeItem('datagem_messages');
+    if (currentDatasetId && dataset && datasetProfile) {
+      saveChatSession(currentDatasetId, {
+        dataset,
+        datasetProfile,
+        messages,
+        filename: datasetFilename,
+        name: datasetFilename || `Dataset ${currentDatasetId.slice(-8)}`,
+        shape: datasetProfile.shape,
+        showSidebar,
+      });
     }
-  }, [messages]);
-
-  // Persist dataset to localStorage
-  useEffect(() => {
-    if (dataset) {
-      localStorage.setItem('datagem_dataset', JSON.stringify(dataset));
-    } else {
-      localStorage.removeItem('datagem_dataset');
-    }
-  }, [dataset]);
-
-  // Persist dataset profile to localStorage
-  useEffect(() => {
-    if (datasetProfile) {
-      localStorage.setItem('datagem_dataset_profile', JSON.stringify(datasetProfile));
-    } else {
-      localStorage.removeItem('datagem_dataset_profile');
-    }
-  }, [datasetProfile]);
-
-  // Persist sidebar state
-  useEffect(() => {
-    localStorage.setItem('datagem_show_sidebar', showSidebar.toString());
-  }, [showSidebar]);
+  }, [currentDatasetId, dataset, datasetProfile, messages, datasetFilename, showSidebar]);
 
   useEffect(() => {
     scrollToBottom();
@@ -192,15 +206,30 @@ export default function Chat() {
           sample: df.slice(0, 10),
         };
 
-        setDataset(df);
-        setDatasetProfile(profile);
-        setShowSidebar(true);
+        // Generate unique dataset ID
+        const datasetId = generateDatasetId(df, file.name);
+        setCurrentDatasetIdState(datasetId);
+        setCurrentDatasetId(datasetId);
+        setDatasetFilename(file.name);
 
-        // Add welcome message about dataset
-        setMessages([{
-          role: 'assistant',
-          content: `✅ Dataset loaded successfully!\n\nShape: ${shape.rows} rows × ${shape.cols} columns\nColumns: ${columns.join(', ')}\n\nYou can now ask me questions about your dataset!`,
-        }]);
+        // Check if this dataset already has a chat session
+        const existingSession = getChatSession(datasetId);
+        if (existingSession) {
+          // Load existing session
+          setDataset(existingSession.dataset);
+          setDatasetProfile(existingSession.datasetProfile);
+          setMessages(existingSession.messages || []);
+          setShowSidebar(existingSession.showSidebar !== undefined ? existingSession.showSidebar : true);
+        } else {
+          // New dataset - start fresh
+          setDataset(df);
+          setDatasetProfile(profile);
+          setShowSidebar(true);
+          setMessages([{
+            role: 'assistant',
+            content: `✅ Dataset "${file.name}" loaded successfully!\n\nShape: ${shape.rows} rows × ${shape.cols} columns\nColumns: ${columns.join(', ')}\n\nYou can now ask me questions about your dataset!`,
+          }]);
+        }
       },
       error: (error) => {
         alert(`Error parsing CSV: ${error.message}`);
@@ -212,9 +241,32 @@ export default function Chat() {
     setDataset(null);
     setDatasetProfile(null);
     setMessages([]);
+    setCurrentDatasetIdState(null);
+    setCurrentDatasetId(null);
+    setDatasetFilename(null);
+    // Keep old localStorage cleanup for backward compatibility
     localStorage.removeItem('datagem_dataset');
     localStorage.removeItem('datagem_dataset_profile');
     localStorage.removeItem('datagem_messages');
+  };
+
+  const handleSelectChat = (datasetId) => {
+    if (!datasetId) {
+      // Clear current chat
+      clearDataset();
+      return;
+    }
+
+    const session = getChatSession(datasetId);
+    if (session) {
+      setCurrentDatasetIdState(datasetId);
+      setCurrentDatasetId(datasetId);
+      setDataset(session.dataset);
+      setDatasetProfile(session.datasetProfile);
+      setMessages(session.messages || []);
+      setDatasetFilename(session.filename || null);
+      setShowSidebar(session.showSidebar !== undefined ? session.showSidebar : true);
+    }
   };
 
   const clearChat = () => {
@@ -404,7 +456,13 @@ export default function Chat() {
     setExecutionStep(0); // Start with "Analyzing"
 
     try {
+      // Wait a moment to show "Analyzing" step
+      await new Promise(resolve => setTimeout(resolve, 500));
       setExecutionStep(1); // "Executing"
+      
+      const streamStartTime = Date.now();
+      const MIN_EXECUTING_TIME = 600; // Minimum time to show "Executing" step (600ms)
+      
       const reader = await chatAPI.streamChat(input, imageFile, dataset);
       if (!reader) {
         throw new Error('Failed to get response stream');
@@ -466,6 +524,12 @@ export default function Chat() {
         streamReader.releaseLock();
       }
 
+      // Ensure "Executing" step is visible for minimum time
+      const executingElapsed = Date.now() - streamStartTime;
+      if (executingElapsed < MIN_EXECUTING_TIME) {
+        await new Promise(resolve => setTimeout(resolve, MIN_EXECUTING_TIME - executingElapsed));
+      }
+
       // Parse response to extract images and code
       setExecutionStep(2); // "Summarizing"
       const parsedResponse = parseResponse(accumulatedResponse);
@@ -478,6 +542,9 @@ export default function Chat() {
         hasOutputs: parsedResponse.outputs?.length > 0,
         hasImages: parsedResponse.images?.length > 0,
       });
+      
+      // Wait a moment to show "Summarizing" step before hiding the progress indicator
+      await new Promise(resolve => setTimeout(resolve, 800));
       
       setMessages((prev) => [
         ...prev,
@@ -526,7 +593,9 @@ export default function Chat() {
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900 transition-colors">
+    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900 transition-colors relative overflow-hidden">
+      {/* Animated background gradient */}
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-100/20 via-purple-100/20 to-pink-100/20 dark:from-indigo-900/10 dark:via-purple-900/10 dark:to-pink-900/10 animate-gradient-shift bg-[length:200%_200%] pointer-events-none" />
       {/* Sidebar */}
       <AnimatePresence>
       {showSidebar && (
@@ -581,25 +650,50 @@ export default function Chat() {
                         </div>
                         
                         <div>
-                          <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Columns</h4>
-                          <div className="flex flex-wrap gap-2">
-                            {datasetProfile.columns.map((col, idx) => (
-                              <motion.span
-                                key={idx}
-                                initial={{ opacity: 0, scale: 0.8 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ delay: idx * 0.05 }}
-                                whileHover={{ scale: 1.05 }}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-lg shadow-sm ${
-                                  datasetProfile.numericColumns.includes(col)
-                                    ? 'bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/50 dark:to-emerald-900/50 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800'
-                                    : 'bg-gradient-to-r from-indigo-100 to-purple-100 dark:from-indigo-900/50 dark:to-purple-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
-                                }`}
-                                title={datasetProfile.numericColumns.includes(col) ? 'Numeric column' : 'Text column'}
-                              >
-                                {col}
-                              </motion.span>
-                            ))}
+                          <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2.5 uppercase tracking-wide">
+                            Columns ({datasetProfile.columns.length})
+                          </h4>
+                          <div className="flex flex-wrap gap-1.5">
+                            {datasetProfile.columns.map((col, idx) => {
+                              const isNumeric = datasetProfile.numericColumns.includes(col);
+                              const formattedName = formatColumnName(col);
+                              // Show abbreviated version if formatted name is too long (>18 chars)
+                              const displayName = formattedName.length > 18 
+                                ? formattedName.substring(0, 15) + '...' 
+                                : formattedName;
+                              
+                              return (
+                                <motion.span
+                                  key={idx}
+                                  initial={{ opacity: 0, scale: 0.9 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  transition={{ delay: idx * 0.03 }}
+                                  whileHover={{ scale: 1.08, zIndex: 10 }}
+                                  className={`group relative px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all cursor-default ${
+                                    isNumeric
+                                      ? 'bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-200 border border-green-300/70 dark:border-green-700/70 hover:bg-green-100 dark:hover:bg-green-900/50 hover:border-green-400 dark:hover:border-green-600 hover:shadow-md'
+                                      : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200 border border-indigo-300/70 dark:border-indigo-700/70 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 hover:border-indigo-400 dark:hover:border-indigo-600 hover:shadow-md'
+                                  }`}
+                                  title={`${formattedName}${isNumeric ? ' (Numeric)' : ' (Text)'}`}
+                                >
+                                  <span className="flex items-center gap-1.5">
+                                    <span className={`text-[9px] ${isNumeric ? 'text-green-600 dark:text-green-400' : 'text-indigo-600 dark:text-indigo-400'}`}>
+                                      {isNumeric ? '🔢' : '📝'}
+                                    </span>
+                                    <span className="truncate max-w-[120px]">{displayName}</span>
+                                  </span>
+                                  {/* Full name tooltip on hover - only show if truncated */}
+                                  {formattedName.length > 18 && (
+                                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2.5 py-1.5 text-xs font-medium text-white bg-gray-900 dark:bg-gray-800 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 border border-gray-700 dark:border-gray-600">
+                                      {formattedName}
+                                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                                        <div className="border-4 border-transparent border-t-gray-900 dark:border-t-gray-800"></div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </motion.span>
+                              );
+                            })}
                           </div>
                         </div>
 
@@ -677,7 +771,7 @@ export default function Chat() {
       </AnimatePresence>
 
       {/* Main Content */}
-      <div className="flex flex-col flex-1 overflow-hidden min-h-0">
+      <div className="relative flex flex-col flex-1 overflow-hidden min-h-0 z-10">
         {/* Header */}
         <motion.header
           initial={{ y: -20, opacity: 0 }}
@@ -744,6 +838,18 @@ export default function Chat() {
                     title="Clear chat history"
                   >
                     Clear Chat
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowChatHistory(true)}
+                    className="px-4 py-2 text-sm font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-800 transition flex items-center gap-2"
+                    title="View chat history"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Chat History
                     </motion.button>
                   </motion.div>
               )}
@@ -841,23 +947,23 @@ export default function Chat() {
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} group`}
               >
                   <motion.div
-                    whileHover={{ scale: 1.02 }}
-                  className={`max-w-3xl rounded-2xl px-6 py-4 relative ${
-                    message.role === 'user'
-                        ? 'bg-indigo-600 dark:bg-indigo-700 text-white shadow-lg'
-                      : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm border border-gray-200 dark:border-gray-700'
-                  }`}
-                >
+                    whileHover={{ scale: 1.01 }}
+                    className={`max-w-3xl rounded-xl px-6 py-5 relative ${
+                      message.role === 'user'
+                        ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 dark:from-indigo-700 dark:to-indigo-800 text-white shadow-lg'
+                        : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-md border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow'
+                    }`}
+                  >
                   {message.role === 'assistant' && (
                     <motion.button
                       initial={{ opacity: 0, scale: 0.8 }}
                       whileHover={{ opacity: 1, scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       onClick={() => copyToClipboard(message.content)}
-                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                      className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 shadow-sm border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800"
                       title="Copy message"
                     >
-                      <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                       </svg>
                     </motion.button>
@@ -883,24 +989,25 @@ export default function Chat() {
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: idx * 0.1 }}
-                            className="rounded-xl overflow-hidden shadow-md max-h-[60vh] flex flex-col"
+                            className="rounded-lg overflow-hidden shadow-lg border border-gray-200 dark:border-gray-700 max-h-[60vh] flex flex-col bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-900"
                           >
-                            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden flex-shrink-0">
+                            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border-b border-gray-200 dark:border-gray-700 overflow-hidden flex-shrink-0">
                               <motion.button
-                                whileHover={{ backgroundColor: theme === 'dark' ? 'rgba(55, 65, 81, 0.5)' : 'rgba(243, 244, 246, 0.8)' }}
+                                whileHover={{ backgroundColor: theme === 'dark' ? 'rgba(55, 65, 81, 0.3)' : 'rgba(243, 244, 246, 0.6)' }}
                                 onClick={() => {
                                   setExpandedCodeBlocks(prev => ({
                                     ...prev,
                                     [key]: !prev[key]
                                   }));
                                 }}
-                                className="w-full flex items-center justify-between p-3 transition-colors"
+                                className="w-full flex items-center justify-between px-4 py-3 transition-colors"
                               >
                                 <div className="flex items-center gap-3">
-                                  <span className="text-sm font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
-                                    🔧 Executing: {codeBlock.tool}
+                                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                                  <span className="text-sm font-bold text-gray-800 dark:text-gray-200">
+                                    Executing: <span className="text-indigo-600 dark:text-indigo-400">{codeBlock.tool}</span>
                                   </span>
-                                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  <span className="text-xs px-2 py-1 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 font-medium">
                                     {codeBlock.code.split('\n').length} lines
                                   </span>
                                 </div>
@@ -963,24 +1070,25 @@ export default function Chat() {
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: idx * 0.1 }}
-                            className="rounded-xl overflow-hidden shadow-md max-h-[60vh] flex flex-col"
+                            className="rounded-lg overflow-hidden shadow-lg border border-gray-200 dark:border-gray-700 max-h-[60vh] flex flex-col bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20"
                           >
-                            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden flex-shrink-0">
+                            <div className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 border-b border-gray-200 dark:border-gray-700 overflow-hidden flex-shrink-0">
                               <motion.button
-                                whileHover={{ backgroundColor: theme === 'dark' ? 'rgba(55, 65, 81, 0.5)' : 'rgba(243, 244, 246, 0.8)' }}
+                                whileHover={{ backgroundColor: theme === 'dark' ? 'rgba(55, 65, 81, 0.3)' : 'rgba(243, 244, 246, 0.6)' }}
                                 onClick={() => {
                                   setExpandedOutputs(prev => ({
                                     ...prev,
                                     [key]: !prev[key]
                                   }));
                                 }}
-                                className="w-full flex items-center justify-between p-3 transition-colors"
+                                className="w-full flex items-center justify-between px-4 py-3 transition-colors"
                               >
                                 <div className="flex items-center gap-3">
-                                  <span className="text-sm font-semibold bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-400 dark:to-cyan-400 bg-clip-text text-transparent">
-                                    📊 Code Output {idx + 1}
+                                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                                  <span className="text-sm font-bold text-gray-800 dark:text-gray-200">
+                                    Code Output <span className="text-blue-600 dark:text-blue-400">{idx + 1}</span>
                                   </span>
-                                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  <span className="text-xs px-2 py-1 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 font-medium">
                                     {output.split('\n').length} lines
                                   </span>
                                 </div>
@@ -1022,36 +1130,51 @@ export default function Chat() {
                     </div>
                   )}
                   
-                  {/* Display images from visualizations */}
+                  {/* Display images from visualizations - Enhanced */}
                   {message.images && message.images.length > 0 && (
-                    <div className="mb-4 space-y-3">
+                    <div className="mb-4 space-y-4">
                       {message.images.map((imgSrc, idx) => (
-                        <InteractiveChart
+                        <motion.div
                           key={idx}
-                          imageSrc={imgSrc}
-                          data={null}
-                          title={`Visualization ${idx + 1}`}
-                        />
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: idx * 0.1 }}
+                          className="rounded-lg overflow-hidden border-2 border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow bg-white dark:bg-gray-800"
+                        >
+                          <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">📊</span>
+                              <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                                Visualization {idx + 1}
+                              </span>
+                            </div>
+                          </div>
+                          <InteractiveChart
+                            imageSrc={imgSrc}
+                            data={null}
+                            title={`Visualization ${idx + 1}`}
+                          />
+                        </motion.div>
                       ))}
                     </div>
                   )}
                   
-                  {/* Display text summary - always show if there's content or if we have code/output/images */}
+                  {/* Display text summary - Enhanced UI */}
                   {(message.content || (message.code && message.code.length > 0) || (message.outputs && message.outputs.length > 0) || (message.images && message.images.length > 0)) && (
-                  <div className={`prose prose-sm max-w-none ${message.role === 'user' ? 'prose-invert' : 'dark:prose-invert'}`}>
-                      {message.content && message.content.trim() ? (
+                  <div className={`prose prose-sm max-w-none ${message.role === 'user' ? 'prose-invert' : 'dark:prose-invert'} ${message.role === 'assistant' ? 'response-enhanced' : ''}`}>
+{message.content && message.content.trim() ? (
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
-                        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                        strong: ({ children }) => <strong className="font-bold">{children}</strong>,
-                        em: ({ children }) => <em className="italic">{children}</em>,
+                        p: ({ children }) => <p className="mb-3 last:mb-0 text-gray-700 dark:text-gray-300 leading-relaxed">{children}</p>,
+                        strong: ({ children }) => <strong className="font-bold text-gray-900 dark:text-gray-100">{children}</strong>,
+                        em: ({ children }) => <em className="italic text-gray-600 dark:text-gray-400">{children}</em>,
                         code: ({ inline, children }) => 
                           inline ? (
-                            <code className={`px-1.5 py-0.5 rounded text-sm font-mono ${
+                            <code className={`px-2 py-1 rounded-md text-sm font-mono ${
                               message.role === 'user' 
                                 ? 'bg-indigo-500/30 text-indigo-100' 
-                                : 'bg-gray-100 dark:bg-gray-700'
+                                : 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
                             }`}>
                               {children}
                             </code>
@@ -1073,19 +1196,54 @@ export default function Chat() {
                             {children}
                           </pre>
                         ),
-                        ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
-                        ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
-                        li: ({ children }) => <li className="ml-2">{children}</li>,
-                        h1: ({ children }) => <h1 className="text-xl font-bold mb-2 mt-3 first:mt-0">{children}</h1>,
-                        h2: ({ children }) => <h2 className="text-lg font-bold mb-2 mt-3 first:mt-0">{children}</h2>,
-                        h3: ({ children }) => <h3 className="text-base font-bold mb-2 mt-3 first:mt-0">{children}</h3>,
+                        ul: ({ children }) => <ul className="list-disc list-outside mb-4 ml-4 space-y-2 text-gray-700 dark:text-gray-300">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal list-outside mb-4 ml-4 space-y-2 text-gray-700 dark:text-gray-300">{children}</ol>,
+                        li: ({ children }) => <li className="pl-2">{children}</li>,
+                        h1: ({ children }) => <h1 className="text-2xl font-bold mb-3 mt-4 first:mt-0 text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-2">{children}</h1>,
+                        h2: ({ children }) => <h2 className="text-xl font-bold mb-3 mt-4 first:mt-0 text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                          <span className="w-1 h-6 bg-indigo-500 rounded-full"></span>
+                          {children}
+                        </h2>,
+                        h3: ({ children }) => <h3 className="text-lg font-semibold mb-2 mt-3 first:mt-0 text-gray-800 dark:text-gray-200">{children}</h3>,
                         blockquote: ({ children }) => (
-                          <blockquote className="border-l-4 border-indigo-500 pl-4 italic my-2">
+                          <blockquote className="border-l-4 border-indigo-500 dark:border-indigo-400 pl-4 py-2 my-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-r-lg italic text-gray-700 dark:text-gray-300">
                             {children}
                           </blockquote>
                         ),
+                        table: ({ children }) => (
+                          <div className="overflow-x-auto my-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800">
+                              {children}
+                            </table>
+                          </div>
+                        ),
+                        thead: ({ children }) => (
+                          <thead className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30">
+                            {children}
+                          </thead>
+                        ),
+                        tbody: ({ children }) => (
+                          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                            {children}
+                          </tbody>
+                        ),
+                        tr: ({ children }) => (
+                          <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                            {children}
+                          </tr>
+                        ),
+                        th: ({ children }) => (
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                            {children}
+                          </th>
+                        ),
+                        td: ({ children }) => (
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                            {children}
+                          </td>
+                        ),
                         a: ({ href, children }) => (
-                          <a href={href} target="_blank" rel="noopener noreferrer" className={`hover:underline ${
+                          <a href={href} target="_blank" rel="noopener noreferrer" className={`hover:underline font-medium ${
                             message.role === 'user' 
                               ? 'text-indigo-200' 
                               : 'text-indigo-600 dark:text-indigo-400'
@@ -1093,51 +1251,20 @@ export default function Chat() {
                             {children}
                           </a>
                         ),
-                        table: ({ children }) => (
-                          <div className="overflow-x-auto my-3">
-                            <table className="min-w-full border border-gray-300 dark:border-gray-600 text-sm">
-                              {children}
-                            </table>
-                          </div>
-                        ),
-                        thead: ({ children }) => (
-                              <thead className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-gray-800 dark:to-gray-750">
-                            {children}
-                          </thead>
-                        ),
-                        tbody: ({ children }) => (
-                              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                            {children}
-                          </tbody>
-                        ),
-                        tr: ({ children }) => (
-                              <tr className="hover:bg-indigo-50/50 dark:hover:bg-gray-700/50 transition-colors">
-                            {children}
-                          </tr>
-                        ),
-                        th: ({ children }) => (
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                            {children}
-                          </th>
-                        ),
-                        td: ({ children }) => (
-                              <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap">
-                            {children}
-                          </td>
-                        ),
+                        hr: () => <hr className="my-4 border-gray-200 dark:border-gray-700" />,
                       }}
                     >
                       {message.content}
                     </ReactMarkdown>
                       ) : (
-                        // If we have code/output/images but no text content, show a placeholder
+                        // If we have code/output/images but no text content, show a minimal completion message
                         (message.code && message.code.length > 0) || (message.outputs && message.outputs.length > 0) || (message.images && message.images.length > 0) ? (
-                          <div className="text-gray-500 dark:text-gray-400 italic space-y-2">
-                            <p>Analysis completed. Review the code, output, and visualizations above.</p>
-                            <p className="text-xs text-gray-400 dark:text-gray-500">
-                              Note: A text summary should appear here. If it's missing, check the browser console for debugging information.
-                            </p>
-                  </div>
+                          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400 mt-2">
+                            <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span className="text-sm font-medium">Analysis completed</span>
+                          </div>
                         ) : null
                       )}
                 </div>
@@ -1183,16 +1310,16 @@ export default function Chat() {
                     ) : null;
                   })()}
                   
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <div className="prose prose-sm dark:prose-invert max-w-none response-enhanced">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
-                        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                        strong: ({ children }) => <strong className="font-bold">{children}</strong>,
-                        em: ({ children }) => <em className="italic">{children}</em>,
+                        p: ({ children }) => <p className="mb-3 last:mb-0 text-gray-700 dark:text-gray-300 leading-relaxed">{children}</p>,
+                        strong: ({ children }) => <strong className="font-bold text-gray-900 dark:text-gray-100">{children}</strong>,
+                        em: ({ children }) => <em className="italic text-gray-600 dark:text-gray-400">{children}</em>,
                         code: ({ inline, children }) => 
                           inline ? (
-                            <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-sm font-mono">
+                            <code className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-2 py-1 rounded-md text-sm font-mono">
                               {children}
                             </code>
                           ) : (
@@ -1205,51 +1332,87 @@ export default function Chat() {
                             {children}
                           </pre>
                         ),
-                        ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
-                        ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
-                        li: ({ children }) => <li className="ml-2">{children}</li>,
-                        h1: ({ children }) => <h1 className="text-xl font-bold mb-2 mt-3 first:mt-0">{children}</h1>,
-                        h2: ({ children }) => <h2 className="text-lg font-bold mb-2 mt-3 first:mt-0">{children}</h2>,
-                        h3: ({ children }) => <h3 className="text-base font-bold mb-2 mt-3 first:mt-0">{children}</h3>,
+                        ul: ({ children }) => <ul className="list-disc list-outside mb-4 ml-4 space-y-2 text-gray-700 dark:text-gray-300">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal list-outside mb-4 ml-4 space-y-2 text-gray-700 dark:text-gray-300">{children}</ol>,
+                        li: ({ children }) => <li className="pl-2">{children}</li>,
+                        h1: ({ children }) => <h1 className="text-2xl font-bold mb-3 mt-4 first:mt-0 text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-2">{children}</h1>,
+                        h2: ({ children }) => <h2 className="text-xl font-bold mb-3 mt-4 first:mt-0 text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                          <span className="w-1 h-6 bg-indigo-500 rounded-full"></span>
+                          {children}
+                        </h2>,
+                        h3: ({ children }) => <h3 className="text-lg font-semibold mb-2 mt-3 first:mt-0 text-gray-800 dark:text-gray-200">{children}</h3>,
                         blockquote: ({ children }) => (
-                          <blockquote className="border-l-4 border-indigo-500 pl-4 italic my-2">
+                          <blockquote className="border-l-4 border-indigo-500 dark:border-indigo-400 pl-4 py-2 my-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-r-lg italic text-gray-700 dark:text-gray-300">
                             {children}
                           </blockquote>
                         ),
-                        a: ({ href, children }) => (
-                          <a href={href} target="_blank" rel="noopener noreferrer" className="text-indigo-600 dark:text-indigo-400 hover:underline">
-                            {children}
-                          </a>
-                        ),
                         table: ({ children }) => (
-                          <div className="overflow-x-auto my-3">
-                            <table className="min-w-full border border-gray-300 dark:border-gray-600 text-sm">
+                          <div className="overflow-x-auto my-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800">
                               {children}
                             </table>
                           </div>
                         ),
                         thead: ({ children }) => (
-                          <thead className="bg-gray-100 dark:bg-gray-700">
+                          <thead className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30">
                             {children}
                           </thead>
                         ),
                         tbody: ({ children }) => (
-                          <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
+                          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                             {children}
                           </tbody>
                         ),
                         tr: ({ children }) => (
-                          <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                          <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                             {children}
                           </tr>
                         ),
                         th: ({ children }) => (
-                          <th className="px-4 py-2 text-left font-semibold border-b border-gray-300 dark:border-gray-600">
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                             {children}
                           </th>
                         ),
                         td: ({ children }) => (
-                          <td className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                            {children}
+                          </td>
+                        ),
+                        a: ({ href, children }) => (
+                          <a href={href} target="_blank" rel="noopener noreferrer" className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+                            {children}
+                          </a>
+                        ),
+                        hr: () => <hr className="my-4 border-gray-200 dark:border-gray-700" />,
+                        table: ({ children }) => (
+                          <div className="overflow-x-auto my-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800">
+                              {children}
+                            </table>
+                          </div>
+                        ),
+                        thead: ({ children }) => (
+                          <thead className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30">
+                            {children}
+                          </thead>
+                        ),
+                        tbody: ({ children }) => (
+                          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                            {children}
+                          </tbody>
+                        ),
+                        tr: ({ children }) => (
+                          <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                            {children}
+                          </tr>
+                        ),
+                        th: ({ children }) => (
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                            {children}
+                          </th>
+                        ),
+                        td: ({ children }) => (
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                             {children}
                           </td>
                         ),
@@ -1261,7 +1424,7 @@ export default function Chat() {
                   <motion.span
                     animate={{ opacity: [1, 0.3, 1] }}
                     transition={{ duration: 1, repeat: Infinity }}
-                    className="inline-block w-2 h-4 bg-indigo-600 dark:bg-indigo-400 ml-1"
+                    className="inline-block w-2 h-4 bg-indigo-600 dark:bg-indigo-400 ml-2 rounded"
                   />
                 </motion.div>
               </motion.div>
@@ -1277,7 +1440,7 @@ export default function Chat() {
                   initial={{ scale: 0.95 }}
                   animate={{ scale: 1 }}
                   transition={{ type: 'spring' }}
-                  className="max-w-3xl bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm text-gray-900 dark:text-gray-100 shadow-lg border border-gray-200/50 dark:border-gray-700/50 rounded-2xl px-6 py-4"
+                  className="max-w-3xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm border border-gray-200 dark:border-gray-700 rounded-2xl px-6 py-4"
                 >
                   {executionStep !== null && (
                     <div className="mb-4">
@@ -1437,6 +1600,15 @@ export default function Chat() {
           </motion.div>
         </div>
       </div>
+
+      {/* Chat History Sidebar */}
+      <ChatHistory
+        isOpen={showChatHistory}
+        onClose={() => setShowChatHistory(false)}
+        onSelectChat={handleSelectChat}
+        currentDatasetId={currentDatasetId}
+        currentDatasetName={datasetFilename || (datasetProfile ? `${datasetProfile.shape.rows} rows × ${datasetProfile.shape.cols} columns` : null)}
+      />
     </div>
   );
 }

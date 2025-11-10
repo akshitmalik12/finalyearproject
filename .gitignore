@@ -12,8 +12,8 @@ venv/
 node_modules/
 dist/
 build/
-
 # System
 .DS_Store
 .idea/
 .vscode/
+

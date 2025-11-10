@@ -25,10 +25,15 @@ export default function CodeBlock({ code, language = 'python', tool, onRunCode }
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="relative rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900"
+      whileHover={{ scale: 1.01 }}
+      transition={{ duration: 0.2 }}
+      className="relative rounded-xl overflow-hidden backdrop-blur-xl bg-white/80 dark:bg-gray-900/80 border border-white/20 dark:border-gray-700/50 shadow-glass dark:shadow-glass-dark group"
     >
+      {/* Gradient overlay on hover */}
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-indigo-500/5 group-hover:via-purple-500/5 group-hover:to-pink-500/5 transition-all duration-500 pointer-events-none rounded-xl" />
+      
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+      <div className="relative flex items-center justify-between px-4 py-3 bg-gradient-to-r from-gray-50/90 to-gray-100/90 dark:from-gray-800/90 dark:to-gray-850/90 backdrop-blur-sm border-b border-white/20 dark:border-gray-700/30">
         <div className="flex items-center gap-3">
           {tool && (
             <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
@@ -44,10 +49,10 @@ export default function CodeBlock({ code, language = 'python', tool, onRunCode }
         </div>
         <div className="flex items-center gap-2">
           <motion.button
-            whileHover={{ scale: 1.1 }}
+            whileHover={{ scale: 1.1, backgroundColor: theme === 'dark' ? 'rgba(55, 65, 81, 0.8)' : 'rgba(229, 231, 235, 0.8)' }}
             whileTap={{ scale: 0.9 }}
             onClick={() => setShowLineNumbers(!showLineNumbers)}
-            className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            className="p-1.5 rounded-lg backdrop-blur-sm bg-white/50 dark:bg-gray-700/50 hover:bg-white/80 dark:hover:bg-gray-700/80 transition-all duration-200 border border-white/20 dark:border-gray-600/30"
             title={showLineNumbers ? 'Hide line numbers' : 'Show line numbers'}
           >
             <svg className="w-4 h-4 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -56,20 +61,20 @@ export default function CodeBlock({ code, language = 'python', tool, onRunCode }
           </motion.button>
           {onRunCode && (
             <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
+              whileHover={{ scale: 1.05, boxShadow: '0 0 20px rgba(34, 197, 94, 0.4)' }}
+              whileTap={{ scale: 0.95 }}
               onClick={onRunCode}
-              className="px-3 py-1.5 text-xs font-medium bg-green-600 dark:bg-green-700 text-white rounded hover:bg-green-700 dark:hover:bg-green-600 transition-colors"
+              className="px-3 py-1.5 text-xs font-medium bg-gradient-to-r from-green-600 to-emerald-600 dark:from-green-700 dark:to-emerald-700 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 dark:hover:from-green-600 dark:hover:to-emerald-600 transition-all duration-200 shadow-md hover:shadow-lg backdrop-blur-sm"
               title="Re-run code"
             >
               ▶ Run
             </motion.button>
           )}
           <motion.button
-            whileHover={{ scale: 1.1 }}
+            whileHover={{ scale: 1.1, backgroundColor: theme === 'dark' ? 'rgba(55, 65, 81, 0.8)' : 'rgba(229, 231, 235, 0.8)' }}
             whileTap={{ scale: 0.9 }}
             onClick={copyToClipboard}
-            className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors relative"
+            className="p-1.5 rounded-lg backdrop-blur-sm bg-white/50 dark:bg-gray-700/50 hover:bg-white/80 dark:hover:bg-gray-700/80 transition-all duration-200 border border-white/20 dark:border-gray-600/30 relative"
             title="Copy code"
           >
             <AnimatePresence mode="wait">
@@ -106,23 +111,28 @@ export default function CodeBlock({ code, language = 'python', tool, onRunCode }
       </div>
 
       {/* Code Content */}
-      <div className="relative">
+      <div className="relative overflow-x-auto">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
         <SyntaxHighlighter
           language={language}
           style={codeStyle}
           showLineNumbers={showLineNumbers}
           customStyle={{
             margin: 0,
-            padding: '1rem',
-            background: theme === 'dark' ? '#1e1e1e' : '#ffffff',
+            padding: '1.25rem',
+            background: theme === 'dark' 
+              ? 'rgba(30, 30, 30, 0.8)' 
+              : 'rgba(255, 255, 255, 0.9)',
             fontSize: '0.875rem',
-            lineHeight: '1.5',
+            lineHeight: '1.6',
+            fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
           }}
           lineNumberStyle={{
             minWidth: '3em',
-            paddingRight: '1em',
-            color: theme === 'dark' ? '#6e7681' : '#6b7280',
+            paddingRight: '1.5em',
+            color: theme === 'dark' ? '#6e7681' : '#9ca3af',
             userSelect: 'none',
+            opacity: 0.7,
           }}
         >
           {code}
