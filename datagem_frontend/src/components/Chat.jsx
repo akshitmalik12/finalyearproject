@@ -867,7 +867,7 @@ export default function Chat() {
               </div>
               <Link
                 to="/about"
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-500 dark:to-purple-500 rounded-lg hover:from-indigo-700 hover:to-purple-700 dark:hover:from-indigo-600 dark:hover:to-purple-600 transition-all duration-200 shadow-md hover:shadow-lg"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-500 dark:to-purple-500 rounded-lg hover:from-indigo-700 hover:to-purple-700 dark:hover:from-indigo-600 dark:hover:to-purple-600 transition-all duration-200 shadow-md hover:shadow-lg"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -876,33 +876,6 @@ export default function Chat() {
               </Link>
             </div>
             <div className="flex items-center gap-4">
-              <div
-                className="flex items-center gap-2 px-3 py-1 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/80 text-xs font-medium"
-                title={
-                  backendStatus.status === 'online'
-                    ? `Backend online (Gemini key ${backendStatus.activeKeyIndex}/${backendStatus.totalKeys}${
-                        backendStatus.lastQuotaError ? ' – last quota error was a quota/rate-limit issue' : ''
-                      })`
-                    : 'Backend offline or unreachable from this browser. Check that the backend server/container is running and accessible.'
-                }
-              >
-                <span
-                  className={`inline-block w-2 h-2 rounded-full ${
-                    backendStatus.status === 'online'
-                      ? 'bg-emerald-500'
-                      : backendStatus.status === 'offline'
-                      ? 'bg-red-500'
-                      : 'bg-yellow-400'
-                  }`}
-                />
-                <span className="text-gray-700 dark:text-gray-300">
-                  {backendStatus.status === 'online'
-                    ? 'Backend: Online'
-                    : backendStatus.status === 'offline'
-                    ? 'Backend: Offline'
-                    : 'Backend: Checking...'}
-                </span>
-              </div>
               <motion.button
                 whileHover={{ scale: 1.1, rotate: 15 }}
                 whileTap={{ scale: 0.9 }}
