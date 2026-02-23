@@ -40,17 +40,14 @@ app = FastAPI(
 
 # Custom middleware to handle OPTIONS requests BEFORE FastAPI routing
 # Custom middleware to handle OPTIONS requests BEFORE FastAPI routing
+# Custom middleware to handle OPTIONS requests BEFORE FastAPI routing
 class CORSOptionsMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        # Allow localhost, local network IPs, AND your Vercel app
-        allowed_origins = [
-            "https://datagemakshit.vercel.app" # <--- YOUR VERCEL APP
-        ]
-        
         origin = request.headers.get("origin", "")
         
+        # THE MAGIC FIX: Allow localhost, local IPs, and ANY Vercel deployment
         is_allowed = (
-            origin in allowed_origins or
+            origin.endswith(".vercel.app") or  # <--- Approves all Vercel Preview & Prod URLs
             origin.startswith("http://localhost:") or 
             origin.startswith("http://127.0.0.1:") or
             origin.startswith("http://192.168.") or
@@ -64,6 +61,7 @@ class CORSOptionsMiddleware(BaseHTTPMiddleware):
             if is_allowed:
                 response.headers["Access-Control-Allow-Origin"] = origin
             else:
+                # Fallback just in case
                 response.headers["Access-Control-Allow-Origin"] = "https://datagemakshit.vercel.app"
             
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
@@ -71,6 +69,16 @@ class CORSOptionsMiddleware(BaseHTTPMiddleware):
             response.headers["Access-Control-Allow-Credentials"] = "true"
             response.headers["Access-Control-Max-Age"] = "3600"
             return response
+        
+        # For all other requests, process normally and add CORS headers
+        response = await call_next(request)
+        if is_allowed:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            # Ensure streaming responses have proper headers
+            response.headers["Cache-Control"] = "no-cache"
+            response.headers["X-Accel-Buffering"] = "no"
+        return response
         
         # For all other requests, process normally and add CORS headers
         response = await call_next(request)
