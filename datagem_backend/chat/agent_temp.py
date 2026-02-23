@@ -1,7 +1,9 @@
 import os
 import time
-import google.generativeai as genai
-from google.generativeai.types import Tool, FunctionDeclaration
+from typing import Optional
+
+from google import genai
+from google.genai import types as genai_types
 from PIL.Image import Image
 from sqlalchemy.orm import Session
 import traceback
@@ -11,20 +13,13 @@ from database import crud, models as db_models
 from chat import models as chat_models
 from chat import tools
 
-# =====================
-# GEMINI API KEY CONFIGURATION
-# =====================
+Tool = genai_types.Tool
+FunctionDeclaration = genai_types.FunctionDeclaration
 
-# ⚠️ Recommended: use environment variable, fallback to hardcoded for local dev
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyCFJJqzSuBMNmCDhc5-QjJgRH87F1P3M_A")
-
-if not GEMINI_API_KEY:
-    raise ValueError("❌ GEMINI_API_KEY not found. Set it in your environment or .env file.")
-
-try:
-    genai.configure(api_key=GEMINI_API_KEY)
-except Exception as e:
-    print(f"❌ Error configuring Gemini: {e}")
+"""
+Experimental agent (agent_temp) – now using google.genai client.
+This module is not wired into the main app but kept for reference.
+"""
 
 
 # =====================
@@ -230,7 +225,7 @@ Be helpful, thorough, and always provide value with comprehensive summaries incl
             
             # Initialize the Gemini model with tools and function calling config
             self.model = genai.GenerativeModel(
-                model_name="models/gemini-2.5-flash",  # Use flash or pro depending on speed/quality preference
+                model_name="gemini-2.5-flash-lite",
                 tools=[run_python_tool_schema, google_search_tool_schema],
                 tool_config={
                     "function_calling_config": {
@@ -242,7 +237,7 @@ Be helpful, thorough, and always provide value with comprehensive summaries incl
             
             # Create a separate model WITHOUT tools for generating text summaries
             self.text_model = genai.GenerativeModel(
-                model_name="models/gemini-2.5-flash",
+                model_name="gemini-2.5-flash-lite",
                 system_instruction="You are DataGem, an expert data analyst. You provide comprehensive text summaries with formatted markdown tables and insights. Always write clear, helpful explanations."
             )
 

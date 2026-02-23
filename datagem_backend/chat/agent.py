@@ -1,7 +1,9 @@
 import os
 import time
-import google.generativeai as genai
-from google.generativeai.types import Tool, FunctionDeclaration
+from typing import List, Optional
+
+from google import genai
+from google.genai import types as genai_types
 from PIL.Image import Image
 from sqlalchemy.orm import Session
 import traceback
@@ -11,20 +13,76 @@ from database import crud, models as db_models
 from chat import models as chat_models
 from chat import tools
 
-# =====================
-# GEMINI API KEY CONFIGURATION
-# =====================
+Tool = genai_types.Tool
+FunctionDeclaration = genai_types.FunctionDeclaration
+GenerateContentConfig = genai_types.GenerateContentConfig
+ToolConfig = genai_types.ToolConfig
+FunctionCallingConfig = genai_types.FunctionCallingConfig
+Content = genai_types.Content
+Part = genai_types.Part
 
-# ⚠️ Recommended: use environment variable, fallback to hardcoded for local dev
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyCFJJqzSuBMNmCDhc5-QjJgRH87F1P3M_A")
+"""
+GEMINI API KEY CONFIGURATION (google.genai)
 
-if not GEMINI_API_KEY:
-    raise ValueError("❌ GEMINI_API_KEY not found. Set it in your environment or .env file.")
+Supports up to three fallback keys:
+- GEMINI_API_KEY or GEMINI_API_KEY_1  → primary
+- GEMINI_API_KEY_2                    → first backup
+- GEMINI_API_KEY_3                    → second backup
 
-try:
-    genai.configure(api_key=GEMINI_API_KEY)
-except Exception as e:
-    print(f"❌ Error configuring Gemini: {e}")
+If the active key hits a quota / rate-limit error, DataGem will
+automatically switch to the next available key for subsequent calls.
+"""
+
+GEMINI_API_KEYS: List[str] = []
+
+primary_key = os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY_1")
+backup_key_2 = os.getenv("GEMINI_API_KEY_2")
+backup_key_3 = os.getenv("GEMINI_API_KEY_3")
+
+for key in (primary_key, backup_key_2, backup_key_3):
+    if key and key not in GEMINI_API_KEYS:
+        GEMINI_API_KEYS.append(key)
+
+if not GEMINI_API_KEYS:
+    raise ValueError(
+        "❌ No Gemini API keys configured. Set at least GEMINI_API_KEY (or GEMINI_API_KEY_1), "
+        "and optionally GEMINI_API_KEY_2 and GEMINI_API_KEY_3 for automatic fallback."
+    )
+
+CURRENT_KEY_INDEX = 0
+GENAI_CLIENT: Optional[genai.Client] = None
+LAST_QUOTA_ERROR: Optional[str] = None
+
+
+def _configure_gemini_client(index: int) -> None:
+    """Configure the global google.genai client for the given key index."""
+    global GENAI_CLIENT
+    key = GEMINI_API_KEYS[index]
+    try:
+        GENAI_CLIENT = genai.Client(api_key=key)
+        print(f"✅ Configured google.genai client with key #{index + 1}")
+    except Exception as e:
+        print(f"❌ Error configuring google.genai client with key #{index + 1}: {e}")
+        raise
+
+
+def _try_switch_gemini_key() -> bool:
+    """
+    Switch to the next configured Gemini key.
+    Returns True if a new key was activated, False if no more keys remain.
+    """
+    global CURRENT_KEY_INDEX
+    if CURRENT_KEY_INDEX + 1 >= len(GEMINI_API_KEYS):
+        print("⚠️ No backup Gemini API keys remaining.")
+        return False
+
+    CURRENT_KEY_INDEX += 1
+    print(f"🔁 Switching to backup Gemini API key #{CURRENT_KEY_INDEX + 1}")
+    _configure_gemini_client(CURRENT_KEY_INDEX)
+    return True
+
+
+_configure_gemini_client(CURRENT_KEY_INDEX)
 
 
 # =====================
@@ -62,25 +120,39 @@ OUTPUT FORMAT:
   4. Encode: img_base64 = base64.b64encode(buf.read()).decode('utf-8')
   5. Print: print(f"PLOT_IMG_BASE64:{img_base64}")
   6. Close: plt.close()
+- For ML models (classification/regression/clustering):
+  1. Train the model on the prepared data
+  2. If `joblib` is available, save with: `joblib.dump(model, MODELS_DIR / "your_model_name.joblib")`
+  3. After saving, print: `print(f"MODEL_FILE:{MODELS_DIR / 'your_model_name.joblib'}")` so DataGem can surface the saved path
 
 EXAMPLES:
-- Summary with descriptive statistics:
+- Summary with descriptive statistics and WELL-FORMED TABLES:
   print("### Missing Values")
   missing = df.isnull().sum()
-  missing_df = pd.DataFrame({'Column': missing.index, 'Missing Count': missing.values, 'Percentage': (missing.values / len(df) * 100)})
-  print(missing_df.to_markdown())
+  missing_df = pd.DataFrame({
+      'Column': missing.index,
+      'Missing Count': missing.values,
+      'Percentage': (missing.values / len(df) * 100),
+  })
+  # ✅ Proper markdown table with clear headers (no concatenated text)
+  print(missing_df.to_markdown(index=False))
   
-  print("\n### Columns")
+  print("\n### Column Overview")
   cols_df = pd.DataFrame({
       'Column': df.columns,
       'Type': [str(df[col].dtype) for col in df.columns],
-      'Description': ['Description here'] * len(df.columns)
+      'Description': ['Short description here'] * len(df.columns),
   })
-  print(cols_df.to_markdown())
+  # ✅ Columns table is always in the form: | Column | Type | Description |
+  print(cols_df.to_markdown(index=False))
   
-  print("\n### Descriptive Statistics")
-  desc_stats = df.describe()
-  print(desc_stats.to_markdown())
+  print("\n### Descriptive Statistics (Numeric Columns)")
+  numeric_only = df.select_dtypes(include=[np.number])
+  if not numeric_only.empty:
+      desc_stats = numeric_only.describe()
+      print(desc_stats.to_markdown())
+  else:
+      print("No numeric columns found for descriptive statistics.")
 - Visualization: 
   numeric_cols = df.select_dtypes(include=[np.number]).columns
   if len(numeric_cols) > 0:
@@ -130,8 +202,16 @@ class DataAnalystAgent:
         self.db = db
         self.user = user
         self.dataset = dataset
-        self.model = None
-        self.chat = None
+        self.client: Optional[genai.Client] = GENAI_CLIENT
+        self.model_name: str = "gemini-2.5-flash-lite"
+        self.chat = None  # kept for backward compatibility (no longer used as a GenerativeModel chat)
+        self.text_model = None  # no longer a separate model instance; we use config instead
+        self._system_instruction = None
+        self._text_system_instruction = (
+            "You are DataGem, an expert data analyst. You provide comprehensive text "
+            "summaries with formatted markdown tables and insights. Always write clear, "
+            "helpful explanations."
+        )
 
         try:
             # Build system instruction - comprehensive and clear
@@ -214,37 +294,38 @@ CODE REQUIREMENTS:
 - Handle edge cases
 - Use appropriate libraries for the task
 
-Be helpful, thorough, and always provide value with comprehensive summaries including tables!"""
-            
-            # Initialize the Gemini model with tools and function calling config
-            self.model = genai.GenerativeModel(
-                model_name="models/gemini-2.5-flash",  # Use flash or pro depending on speed/quality preference
-                tools=[run_python_tool_schema, google_search_tool_schema],
-                tool_config={
-                    "function_calling_config": {
-                        "mode": "ANY",  # ANY enables constrained decoding for better function call handling
-                    }
-                },
-                system_instruction=system_instruction
-            )
-            
-            # Create a separate model WITHOUT tools for generating text summaries
-            self.text_model = genai.GenerativeModel(
-                model_name="models/gemini-2.5-flash",
-                system_instruction="You are DataGem, an expert data analyst. You provide comprehensive text summaries with formatted markdown tables and insights. Always write clear, helpful explanations."
-            )
+            Be helpful, thorough, and always provide value with comprehensive summaries including tables!"""
 
-            # Load chat history from DB
-            history_db = crud.get_chat_history(db=self.db, user_id=self.user.id)
-            history_gemini = self.convert_db_history_to_gemini(history_db)
+            # Store system instruction so we can reuse when rotating API keys
+            self._system_instruction = system_instruction
 
-            # Start a Gemini chat session
-            self.chat = self.model.start_chat(history=history_gemini)
-            # Removed "Ready" message - it might interfere with responses
+            # Ensure we have a client for the current key
+            if self.client is None:
+                _configure_gemini_client(CURRENT_KEY_INDEX)
+                self.client = GENAI_CLIENT
 
         except Exception as e:
             print(f"❌ Error initializing DataAnalystAgent: {e}")
             traceback.print_exc()
+
+    def _is_quota_error(self, err: Exception) -> bool:
+        """Heuristic detection for quota / rate-limit errors."""
+        global LAST_QUOTA_ERROR
+        msg = str(err)
+        lowered = msg.lower()
+        is_quota = any(
+            token in lowered
+            for token in [
+                "quota",
+                "rate limit",
+                "resourceexhausted",
+                "exceeded",
+                "429",
+            ]
+        )
+        if is_quota:
+            LAST_QUOTA_ERROR = msg
+        return is_quota
 
     # ------------------------------------------------------------------
     def convert_db_history_to_gemini(self, history_db: list[db_models.ChatHistory]) -> list[dict]:
@@ -378,30 +459,78 @@ IMPORTANT:
         iteration_count = 0
 
         try:
-            # For conversational prompts, use text_model (no tools) to ensure no tool calls
+            # For conversational prompts, use a text-only generation config (no tools)
             if is_conversational:
-                print("💬 Using text-only model for conversational response (no tools available)")
-                try:
-                    # Use text_model which has no tools - this guarantees no tool calls
-                    response_stream = self.text_model.generate_content(
-                        enhanced_prompt,
-                        stream=True
+                print("💬 Using google.genai client for conversational response (no tools available)")
+
+                def _start_text_stream():
+                    cfg = GenerateContentConfig(
+                        system_instruction=[self._text_system_instruction],
                     )
+                    return self.client.models.generate_content_stream(
+                        model=self.model_name,
+                        contents=[enhanced_prompt],
+                        config=cfg,
+                    )
+
+                try:
+                    response_stream = _start_text_stream()
                     print("✅ Text-only stream created for conversational response")
                 except Exception as stream_init_error:
                     print(f"❌ Error creating conversational stream: {stream_init_error}")
-                    yield f"❌ Error initializing response: {str(stream_init_error)}"
-                    return
+                    if self._is_quota_error(stream_init_error) and _try_switch_gemini_key():
+                        print("🔁 Retrying conversational response with backup Gemini key...")
+                        self.client = GENAI_CLIENT
+                        try:
+                            response_stream = _start_text_stream()
+                            print("✅ Text-only stream created after key rotation")
+                        except Exception as retry_error:
+                            print(f"❌ Retry failed after key rotation: {retry_error}")
+                            yield f"❌ Error initializing response after switching Gemini key: {str(retry_error)}"
+                            return
+                    else:
+                        yield f"❌ Error initializing response: {str(stream_init_error)}"
+                        return
             else:
-                # For data analysis, use model with tools
-                print("🔄 Starting Gemini stream with tools...")
+                # For data analysis, use tools via google.genai
+                print("🔄 Starting google.genai stream with tools...")
+
+                def _start_tool_stream():
+                    # Rebuild full conversation history for this turn
+                    history_db = crud.get_chat_history(db=self.db, user_id=self.user.id)
+                    history_gemini = self.convert_db_history_to_gemini(history_db)
+                    contents = history_gemini + [{"role": "user", "parts": [{"text": enhanced_prompt}]}]
+                    cfg = GenerateContentConfig(
+                        system_instruction=[self._system_instruction],
+                        tools=[run_python_tool_schema, google_search_tool_schema],
+                        tool_config=ToolConfig(
+                            function_calling_config=FunctionCallingConfig(mode="ANY")
+                        ),
+                    )
+                    return self.client.models.generate_content_stream(
+                        model=self.model_name,
+                        contents=contents,
+                        config=cfg,
+                    )
+
                 try:
-                    response_stream = self.chat.send_message(prompt_parts, stream=True)
+                    response_stream = _start_tool_stream()
                     print("✅ Stream object created, starting to iterate...")
                 except Exception as stream_init_error:
                     print(f"❌ Error creating stream: {stream_init_error}")
-                    yield f"❌ Error initializing response stream: {str(stream_init_error)}"
-                    return
+                    if self._is_quota_error(stream_init_error) and _try_switch_gemini_key():
+                        print("🔁 Retrying data-analysis stream with backup Gemini key...")
+                        self.client = GENAI_CLIENT
+                        try:
+                            response_stream = _start_tool_stream()
+                            print("✅ Stream object created after key rotation")
+                        except Exception as retry_error:
+                            print(f"❌ Retry failed after key rotation: {retry_error}")
+                            yield f"❌ Error initializing response stream after switching Gemini key: {str(retry_error)}"
+                            return
+                    else:
+                        yield f"❌ Error initializing response stream: {str(stream_init_error)}"
+                        return
 
             event_count = 0
             last_event_time = time.time()
@@ -520,6 +649,20 @@ IMPORTANT:
                                     
                                     # Feed tool response back to Gemini
                                     has_image = "PLOT_IMG_BASE64:" in tool_result if tool_result else False
+
+                                    # Detect any saved model files signaled by the tool
+                                    saved_model_paths = []
+                                    if tool_result:
+                                        for line in tool_result.splitlines():
+                                            if line.startswith("MODEL_FILE:"):
+                                                path = line.replace("MODEL_FILE:", "").strip()
+                                                if path:
+                                                    saved_model_paths.append(path)
+
+                                    # If models were saved, surface a short note to the user
+                                    if saved_model_paths:
+                                        model_list = "\n".join(f"- `{p}`" for p in saved_model_paths)
+                                        yield f"\n💾 **Models saved**:\n{model_list}\n\n"
                                     
                                     # Check if code execution failed
                                     code_failed = "Code execution failed" in tool_result or "Error:" in tool_result if tool_result else False
@@ -532,7 +675,9 @@ IMPORTANT:
                                     
                                     # Always define followup_prompt
                                     if code_failed:
-                                        followup_prompt = f"""Code execution error:
+                                        followup_prompt = f"""User question: {prompt}
+
+Code execution error:
 
 {tool_result_preview}
 
@@ -547,43 +692,55 @@ Format:
 
 Keep it short - text only, no tools."""
                                     else:
-                                        followup_prompt = f"""Code executed successfully. Results:
+                                        followup_prompt = f"""User question: {prompt}
+
+Code executed successfully. Results (including any markdown tables):
 
 {tool_result_preview}
 
-Write a CONCISE summary. Be direct - no fluff, no redundancy.
+Write a focused analytic answer to the user's question that USES the numbers from the tables above.
 
 Requirements:
-- Extract key findings from code output above
-- Show actual data/tables (use markdown tables)
-- 2-3 brief insights only
-- NO repetition of what's already in code output
-- Keep it short and actionable
+- First, directly answer the user's question in 1–2 clear sentences (for example, list the unique values, give the requested correlation, describe the requested relationship, etc.).
+- Extract concrete key findings from the output (means, mins/maxes, counts, correlations, etc.).
+- When the user asks for "all columns", "all ground names", "unique values", etc., ALWAYS include at least one clear markdown table with proper headers:
+  - For columns: | Column | Type | Description |
+  - For unique values: | Column | Value | Count |
+- Reference the markdown tables directly instead of repeating them in prose.
+- Highlight patterns, outliers, and comparisons that are actually visible in the data.
+- 3–5 concise bullet-point insights, each grounded in specific values from the tables.
+- If a model was trained, briefly mention its target, main features, and key metrics (accuracy, RMSE, etc.).
+- If any MODEL_FILE lines are present, mention that models were saved but do NOT repeat the paths.
+- No generic filler text, no restating the prompt.
 
 Format:
-🤖 DataGem: [Brief 1-sentence intro]
-
-[Key findings/tables from code output]
+🤖 DataGem: [Direct answer to the question in 1–2 sentences]
 
 **Insights:**
-- [1-2 bullet points]
-- [1-2 bullet points]
+- [Insight with specific numbers]
+- [Insight with specific numbers]
+- [Optional extra insight]
 
-{"**Visualization:** [Brief description if plot was generated]" if has_image else ""}
+{"**Visualization:** [Brief description of what the plot shows]" if has_image else ""}
 
 Start NOW - text only, no tools."""
                                     
-                                    # Use the text-only model for generating summaries (no tools available)
-                                    # Use the detailed followup_prompt for comprehensive summaries
+                                    # Use the google.genai client for generating summaries (no tools)
                                     print(f"📝 Generating text summary from tool results...")
                                     summary_prompt = followup_prompt  # Use the comprehensive prompt
-                                    
-                                    # Use the text-only model (no tools) to generate the summary
-                                    try:
-                                        followup_response = self.text_model.generate_content(
-                                            summary_prompt,
-                                            stream=True
+
+                                    def _start_summary_stream(prompt_text: str):
+                                        cfg = GenerateContentConfig(
+                                            system_instruction=[self._text_system_instruction],
                                         )
+                                        return self.client.models.generate_content_stream(
+                                            model=self.model_name,
+                                            contents=[prompt_text],
+                                            config=cfg,
+                                        )
+
+                                    try:
+                                        followup_response = _start_summary_stream(summary_prompt)
                                         print(f"✅ Summary generation started")
                                     except Exception as summary_error:
                                         print(f"❌ Error starting summary: {summary_error}")
@@ -593,10 +750,7 @@ Start NOW - text only, no tools."""
 {tool_result_preview}
 
 Write a brief summary: key findings only, no redundancy. Extract actual values from output. Be direct and concise."""
-                                        followup_response = self.text_model.generate_content(
-                                            summary_prompt,
-                                            stream=True
-                                        )
+                                        followup_response = _start_summary_stream(summary_prompt)
                                     
                                     # Process followup response - this contains the text summary
                                     followup_has_text = False
@@ -1133,7 +1287,53 @@ Provide a brief summary with key insights. Start with "🤖 DataGem:" - be conci
             except Exception as stream_error:
                 print(f"❌ Error during stream iteration: {stream_error}")
                 traceback.print_exc()
-                yield f"\n\n⚠️ Error processing stream: {str(stream_error)}\n"
+
+                # If this is a quota / rate-limit error, try switching to a backup key once
+                if self._is_quota_error(stream_error) and _try_switch_gemini_key():
+                    print("🔁 Stream hit quota error during iteration; switching key and retrying turn...")
+                    self.client = GENAI_CLIENT
+                    try:
+                        # Rebuild stream with the same prompt under the new key
+                        if is_conversational:
+                            cfg = GenerateContentConfig(
+                                system_instruction=[self._text_system_instruction],
+                            )
+                            retry_stream = self.client.models.generate_content_stream(
+                                model=self.model_name,
+                                contents=[enhanced_prompt],
+                                config=cfg,
+                            )
+                        else:
+                            history_db = crud.get_chat_history(db=self.db, user_id=self.user.id)
+                            history_gemini = self.convert_db_history_to_gemini(history_db)
+                            contents = history_gemini + [{"role": "user", "parts": [{"text": enhanced_prompt}]}]
+                            cfg = GenerateContentConfig(
+                                system_instruction=[self._system_instruction],
+                                tools=[run_python_tool_schema, google_search_tool_schema],
+                                tool_config=ToolConfig(
+                                    function_calling_config=FunctionCallingConfig(mode="ANY")
+                                ),
+                            )
+                            retry_stream = self.client.models.generate_content_stream(
+                                model=self.model_name,
+                                contents=contents,
+                                config=cfg,
+                            )
+
+                        # Consume the retry stream and yield its text
+                        for retry_event in retry_stream:
+                            try:
+                                if hasattr(retry_event, "text") and retry_event.text:
+                                    has_output = True
+                                    ai_response_content += retry_event.text
+                                    yield retry_event.text
+                            except Exception:
+                                pass
+                    except Exception as retry_err:
+                        print(f"❌ Retry after quota switch failed: {retry_err}")
+                        yield f"\n\n⚠️ Error processing stream after switching Gemini key: {str(retry_err)}\n"
+                else:
+                    yield f"\n\n⚠️ Error processing stream: {str(stream_error)}\n"
 
             # --- If Gemini produced no text ---
             if not has_output:

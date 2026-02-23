@@ -1,0 +1,27 @@
+FROM node:20-alpine AS build
+
+WORKDIR /app
+
+# Build-time API base URL for the frontend
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+
+COPY datagem_frontend/package*.json ./datagem_frontend/
+WORKDIR /app/datagem_frontend
+
+RUN npm install
+
+COPY datagem_frontend ./ 
+
+RUN npm run build
+
+FROM nginx:alpine AS runtime
+
+WORKDIR /usr/share/nginx/html
+
+COPY --from=build /app/datagem_frontend/dist ./
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
+

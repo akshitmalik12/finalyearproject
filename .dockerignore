@@ -1,0 +1,15 @@
+.git
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.log
+node_modules
+datagem_frontend/node_modules
+datagem_frontend/dist
+
+Dockerfile.backend
+Dockerfile.frontend
+docker-compose.yml
+

@@ -30,12 +30,21 @@ def run_python_code(code: str, dataset_data: list[dict] | None = None) -> str:
         full_code = ""
         
         # Add imports
+        full_code += "import os\n"
+        full_code += "from pathlib import Path\n"
         full_code += "import pandas as pd\n"
         full_code += "import matplotlib.pyplot as plt\n"
         full_code += "import seaborn as sns\n"
         full_code += "import numpy as np\n"
         full_code += "import io\n"
         full_code += "import base64\n"
+        full_code += "try:\n"
+        full_code += "    import joblib\n"
+        full_code += "except ImportError:\n"
+        full_code += "    joblib = None\n"
+        full_code += "    print('Warning: joblib is not installed; model saving will be disabled. Install with: pip install joblib')\n"
+        full_code += "MODELS_DIR = Path('models')\n"
+        full_code += "MODELS_DIR.mkdir(exist_ok=True)\n"
         # Try to import sklearn, but don't fail if it's not available
         full_code += "try:\n"
         full_code += "    from sklearn import *\n"
@@ -52,19 +61,44 @@ def run_python_code(code: str, dataset_data: list[dict] | None = None) -> str:
         
         # Add dataset if provided
         if dataset_data:
-            # Convert dataset to DataFrame JSON and load it
-            df_json = json.dumps(dataset_data)
+            # For very large datasets, work on a row sample to keep execution fast and
+            # avoid timeouts. This is usually sufficient for overview statistics.
+            original_row_count = len(dataset_data)
+            max_rows = 5000
+            if original_row_count > max_rows:
+                sampled_data = dataset_data[:max_rows]
+            else:
+                sampled_data = dataset_data
+
+            # Convert (possibly sampled) dataset to DataFrame JSON and load it
+            df_json = json.dumps(sampled_data)
             full_code += f"# Load dataset\n"
             full_code += f"import json\n"
             full_code += f"dataset_json = {repr(df_json)}\n"
             full_code += f"df = pd.DataFrame(json.loads(dataset_json))\n"
-            full_code += f"# Convert numeric columns to proper types\n"
-            full_code += f"for col in df.columns:\n"
-            full_code += f"    try:\n"
-            full_code += f"        # Try to convert to numeric, coerce errors to NaN\n"
-            full_code += f"        df[col] = pd.to_numeric(df[col], errors='coerce')\n"
-            full_code += f"    except:\n"
-            full_code += f"        pass  # Keep as string if conversion fails\n"
+
+            # On moderate-sized dataframes, try to coerce only clearly numeric columns.
+            # Textual / categorical columns like 'Ground Name', 'Weather Conditions',
+            # or 'Winner' should remain as strings so that value-based questions
+            # (unique values, counts, etc.) work correctly.
+            full_code += f"if df.shape[0] <= {max_rows}:\n"
+            full_code += "    for col in df.columns:\n"
+            full_code += "        try:\n"
+            full_code += "            sample = df[col].dropna().astype(str).head(10)\n"
+            full_code += "            if len(sample) == 0:\n"
+            full_code += "                continue\n"
+            full_code += "            numeric_like = 0\n"
+            full_code += "            for v in sample:\n"
+            full_code += "                cleaned = v.replace(',', '').replace(' ', '')\n"
+            full_code += "                cleaned = cleaned.replace('%', '')\n"
+            full_code += "                cleaned = cleaned.replace('$', '')\n"
+            full_code += "                if cleaned.replace('.', '', 1).replace('-', '', 1).isdigit():\n"
+            full_code += "                    numeric_like += 1\n"
+            full_code += "            if numeric_like / len(sample) >= 0.6:\n"
+            full_code += "                df[col] = pd.to_numeric(df[col], errors='coerce')\n"
+            full_code += "        except Exception:\n"
+            full_code += "            pass\n"
+
             full_code += f"print(f'Dataset loaded: {{df.shape[0]}} rows × {{df.shape[1]}} columns')\n"
             full_code += f"print(f'Columns: {{list(df.columns)}}')\n"
             full_code += f"numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()\n"
@@ -84,7 +118,7 @@ def run_python_code(code: str, dataset_data: list[dict] | None = None) -> str:
             [python_executable, '-c', full_code],
             capture_output=True,
             text=True,
-            timeout=30,  # 30-second timeout to prevent hanging
+            timeout=60,  # Allow up to 60 seconds to better handle larger datasets
             check=False,  # Don't raise on error, we'll handle it
             env={**os.environ, 'PYTHONUNBUFFERED': '1'}  # Ensure unbuffered output
         )

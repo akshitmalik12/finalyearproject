@@ -4,6 +4,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { chatAPI } from '../services/api';
 import { Link } from 'react-router-dom';
 import Papa from 'papaparse';
+import { API_BASE_URL } from '../services/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import InteractiveChart from './InteractiveChart';
@@ -32,6 +33,7 @@ export default function Chat() {
   const [dataset, setDataset] = useState(null);
   const [datasetProfile, setDatasetProfile] = useState(null);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [backendStatus, setBackendStatus] = useState({ status: 'unknown', activeKeyIndex: null, totalKeys: null, lastQuotaError: null });
   const [copySuccess, setCopySuccess] = useState(false);
   const [expandedCodeBlocks, setExpandedCodeBlocks] = useState({});
   const [expandedOutputs, setExpandedOutputs] = useState({});
@@ -123,6 +125,41 @@ export default function Chat() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, currentResponse]);
+
+  // Periodically check backend /health endpoint to drive status pill
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkBackend = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/health`);
+        if (!res.ok) throw new Error(`Health check failed: ${res.status}`);
+        const data = await res.json();
+        if (cancelled) return;
+        setBackendStatus({
+          status: 'online',
+          activeKeyIndex: data.active_key_index,
+          totalKeys: data.total_keys,
+          lastQuotaError: data.last_quota_error || null,
+        });
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Backend health check failed:', err);
+        setBackendStatus((prev) => ({
+          ...prev,
+          status: 'offline',
+        }));
+      }
+    };
+
+    checkBackend();
+    const intervalId = setInterval(checkBackend, 30000); // every 30s
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, []);
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -225,9 +262,13 @@ export default function Chat() {
           setDataset(df);
           setDatasetProfile(profile);
           setShowSidebar(true);
+          const isLarge = shape.rows > 50000;
+          const samplingNotice = isLarge
+            ? '\n\n🔍 Note: This dataset is quite large. For performance and stability, some analyses may be run on a representative sample of the rows. Summary statistics and visualizations will still reflect the overall patterns.'
+            : '';
           setMessages([{
             role: 'assistant',
-            content: `✅ Dataset "${file.name}" loaded successfully!\n\nShape: ${shape.rows} rows × ${shape.cols} columns\nColumns: ${columns.join(', ')}\n\nYou can now ask me questions about your dataset!`,
+            content: `✅ Dataset "${file.name}" loaded successfully!\n\nShape: ${shape.rows} rows × ${shape.cols} columns\nColumns: ${columns.join(', ')}${samplingNotice}\n\nYou can now ask me questions about your dataset!`,
           }]);
         }
       },
@@ -563,13 +604,13 @@ export default function Chat() {
       let errorMessage = 'Sorry, I encountered an error. Please try again.';
       
       if (error.message?.includes('Failed to fetch') || error.message?.includes('Failed to connect') || error.message?.includes('Cannot connect')) {
-        errorMessage = '❌ Failed to connect to the backend. Please make sure:\n\n1. The backend is running on http://127.0.0.1:8000\n2. CORS is properly configured\n3. No firewall is blocking the connection\n\nYou can start the backend with: `cd datagem_backend && python main.py`';
+        errorMessage = '❌ Failed to connect to the backend. Please make sure:\n\n1. The backend is running on the same host as this page (port 8000)\n   - e.g., if you opened the app at http://192.168.x.x:5188, the backend should be at http://192.168.x.x:8000\n2. CORS is properly configured\n3. No firewall is blocking the connection\n\nYou can start the backend with: `cd datagem_backend && ./start_server.sh`';
       } else if (error.message?.includes('Failed to stream') || error.message?.includes('Failed to connect')) {
-        errorMessage = '❌ Failed to connect to the chat service. Please make sure the backend is running on http://127.0.0.1:8000';
+        errorMessage = '❌ Failed to connect to the chat service. Please make sure the backend is running on the same host (port 8000).';
       } else if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
         errorMessage = '❌ Server authentication error. Please try again.';
       } else if (error.message?.includes('Network Error') || error.message?.includes('ERR_NETWORK')) {
-        errorMessage = '❌ Network error. Please check if the backend server is running and accessible.';
+        errorMessage = '❌ Network error. Please check if the backend server is running and accessible from this device.';
       } else if (error.message?.includes('timeout') || error.message?.includes('Timeout')) {
         errorMessage = '⏱️ Request timed out. The backend may be processing a large request. Please try:\n\n1. Check the backend console for errors\n2. Try a simpler question\n3. Wait a moment and try again';
       } else if (error.message?.includes('Server error')) {
@@ -596,6 +637,48 @@ export default function Chat() {
     <div className="flex h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900 transition-colors relative overflow-hidden">
       {/* Animated background gradient */}
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-100/20 via-purple-100/20 to-pink-100/20 dark:from-indigo-900/10 dark:via-purple-900/10 dark:to-pink-900/10 animate-gradient-shift bg-[length:200%_200%] pointer-events-none" />
+
+      {/* Top status bar */}
+      <div className="absolute top-3 right-4 z-20 flex items-center gap-3">
+        <div
+          className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium border ${
+            backendStatus.status === 'online'
+              ? 'bg-emerald-50 border-emerald-300 text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-500/60 dark:text-emerald-100'
+              : backendStatus.status === 'offline'
+              ? 'bg-rose-50 border-rose-300 text-rose-800 dark:bg-rose-900/30 dark:border-rose-500/60 dark:text-rose-100'
+              : 'bg-gray-50 border-gray-300 text-gray-700 dark:bg-gray-800/60 dark:border-gray-600 dark:text-gray-200'
+          }`}
+          title={
+            backendStatus.status === 'online'
+              ? backendStatus.lastQuotaError
+                ? `Backend online. Last quota warning: ${backendStatus.lastQuotaError}`
+                : 'Backend online.'
+              : backendStatus.status === 'offline'
+              ? 'Backend appears offline or unreachable from this browser.'
+              : 'Checking backend status...'
+          }
+        >
+          <span
+            className={`inline-block w-2 h-2 rounded-full ${
+              backendStatus.status === 'online'
+                ? 'bg-emerald-500'
+                : backendStatus.status === 'offline'
+                ? 'bg-rose-500'
+                : 'bg-amber-400'
+            }`}
+          />
+          <span>
+            {backendStatus.status === 'online'
+              ? `Backend online (key ${backendStatus.activeKeyIndex}/${backendStatus.totalKeys || '?'})`
+              : backendStatus.status === 'offline'
+              ? 'Backend offline'
+              : 'Checking backend...'}
+          </span>
+          {isCheckingBackend && (
+            <span className="ml-1 animate-pulse text-[10px] opacity-70">…</span>
+          )}
+        </div>
+      </div>
       {/* Sidebar */}
       <AnimatePresence>
       {showSidebar && (
@@ -796,6 +879,33 @@ export default function Chat() {
               </Link>
             </div>
             <div className="flex items-center gap-4">
+              <div
+                className="flex items-center gap-2 px-3 py-1 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/80 text-xs font-medium"
+                title={
+                  backendStatus.status === 'online'
+                    ? `Backend online (Gemini key ${backendStatus.activeKeyIndex}/${backendStatus.totalKeys}${
+                        backendStatus.lastQuotaError ? ' – last quota error was a quota/rate-limit issue' : ''
+                      })`
+                    : 'Backend offline or unreachable from this browser. Check that the backend server/container is running and accessible.'
+                }
+              >
+                <span
+                  className={`inline-block w-2 h-2 rounded-full ${
+                    backendStatus.status === 'online'
+                      ? 'bg-emerald-500'
+                      : backendStatus.status === 'offline'
+                      ? 'bg-red-500'
+                      : 'bg-yellow-400'
+                  }`}
+                />
+                <span className="text-gray-700 dark:text-gray-300">
+                  {backendStatus.status === 'online'
+                    ? 'Backend: Online'
+                    : backendStatus.status === 'offline'
+                    ? 'Backend: Offline'
+                    : 'Backend: Checking...'}
+                </span>
+              </div>
               <motion.button
                 whileHover={{ scale: 1.1, rotate: 15 }}
                 whileTap={{ scale: 0.9 }}
@@ -1210,38 +1320,6 @@ export default function Chat() {
                             {children}
                           </blockquote>
                         ),
-                        table: ({ children }) => (
-                          <div className="overflow-x-auto my-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-                            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800">
-                              {children}
-                            </table>
-                          </div>
-                        ),
-                        thead: ({ children }) => (
-                          <thead className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30">
-                            {children}
-                          </thead>
-                        ),
-                        tbody: ({ children }) => (
-                          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                            {children}
-                          </tbody>
-                        ),
-                        tr: ({ children }) => (
-                          <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                            {children}
-                          </tr>
-                        ),
-                        th: ({ children }) => (
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                            {children}
-                          </th>
-                        ),
-                        td: ({ children }) => (
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                            {children}
-                          </td>
-                        ),
                         a: ({ href, children }) => (
                           <a href={href} target="_blank" rel="noopener noreferrer" className={`hover:underline font-medium ${
                             message.role === 'user' 
@@ -1384,38 +1462,6 @@ export default function Chat() {
                           </a>
                         ),
                         hr: () => <hr className="my-4 border-gray-200 dark:border-gray-700" />,
-                        table: ({ children }) => (
-                          <div className="overflow-x-auto my-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-                            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800">
-                              {children}
-                            </table>
-                          </div>
-                        ),
-                        thead: ({ children }) => (
-                          <thead className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30">
-                            {children}
-                          </thead>
-                        ),
-                        tbody: ({ children }) => (
-                          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                            {children}
-                          </tbody>
-                        ),
-                        tr: ({ children }) => (
-                          <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                            {children}
-                          </tr>
-                        ),
-                        th: ({ children }) => (
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                            {children}
-                          </th>
-                        ),
-                        td: ({ children }) => (
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                            {children}
-                          </td>
-                        ),
                       }}
                     >
                       {currentResponse}

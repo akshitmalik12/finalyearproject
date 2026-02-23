@@ -1,6 +1,24 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://127.0.0.1:8000';
+// Determine backend base URL:
+// - Prefer VITE_API_BASE_URL if set (for deployed/staging environments)
+// - Otherwise, use the current hostname with port 8000 so that
+//   LAN users hitting the frontend via http://192.168.x.x:5173
+//   will correctly talk to http://192.168.x.x:8000 instead of localhost.
+export const getApiBaseUrl = () => {
+  const envUrl = import.meta.env?.VITE_API_BASE_URL;
+  if (envUrl) return envUrl;
+
+  if (typeof window !== 'undefined' && window.location) {
+    const { protocol, hostname } = window.location;
+    const backendPort = 8000;
+    return `${protocol}//${hostname}:${backendPort}`;
+  }
+
+  return 'http://127.0.0.1:8000';
+};
+
+export const API_BASE_URL = getApiBaseUrl();
 
 // Create axios instance
 const api = axios.create({
@@ -51,7 +69,12 @@ export const chatAPI = {
       }).catch((networkError) => {
         // Handle network-level errors (CORS, connection refused, etc.)
         console.error('Network fetch error:', networkError);
-        throw new Error(`Failed to fetch: ${networkError.message || 'Cannot connect to backend. Make sure it\'s running on http://127.0.0.1:8000'}`);
+        throw new Error(
+          `Failed to fetch: ${
+            networkError.message ||
+            `Cannot connect to backend. Make sure it's running on ${API_BASE_URL}`
+          }`,
+        );
       });
 
       if (!response.ok) {
@@ -84,7 +107,12 @@ export const chatAPI = {
         throw fetchError;
       }
       // Handle other types of errors
-      throw new Error(`Network error: ${fetchError.message || 'Failed to connect to backend. Please ensure the backend is running on http://127.0.0.1:8000'}`);
+      throw new Error(
+        `Network error: ${
+          fetchError.message ||
+          `Failed to connect to backend. Please ensure the backend is running on ${API_BASE_URL}`
+        }`,
+      );
     }
   },
 };
