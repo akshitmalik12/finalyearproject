@@ -668,15 +668,12 @@ export default function Chat() {
             }`}
           />
           <span>
-            {backendStatus.status === 'online'
+          {backendStatus.status === 'online'
               ? `Backend online (key ${backendStatus.activeKeyIndex}/${backendStatus.totalKeys || '?'})`
               : backendStatus.status === 'offline'
               ? 'Backend offline'
               : 'Checking backend...'}
           </span>
-          {isCheckingBackend && (
-            <span className="ml-1 animate-pulse text-[10px] opacity-70">…</span>
-          )}
         </div>
       </div>
       {/* Sidebar */}
