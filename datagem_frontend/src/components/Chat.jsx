@@ -604,7 +604,7 @@ export default function Chat() {
       let errorMessage = 'Sorry, I encountered an error. Please try again.';
       
       if (error.message?.includes('Failed to fetch') || error.message?.includes('Failed to connect') || error.message?.includes('Cannot connect')) {
-        errorMessage = '❌ Failed to connect to the backend. Please make sure:\n\n1. The backend is running on the same host as this page (port 8000)\n   - e.g., if you opened the app at http://192.168.x.x:5188, the backend should be at http://192.168.x.x:8000\n2. CORS is properly configured\n3. No firewall is blocking the connection\n\nYou can start the backend with: `cd datagem_backend && ./start_server.sh`';
+        errorMessage = `❌ Failed to connect to the backend.\n\nI tried to reach: ${API_BASE_URL}\n\nPlease check:\n1. The backend is running and accessible at that URL (for you: Render or your local server).\n2. CORS is properly configured on the backend.\n3. No firewall or ad-blocker is blocking the request.`;
       } else if (error.message?.includes('Failed to stream') || error.message?.includes('Failed to connect')) {
         errorMessage = '❌ Failed to connect to the chat service. Please make sure the backend is running on the same host (port 8000).';
       } else if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
@@ -634,9 +634,9 @@ export default function Chat() {
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900 transition-colors relative overflow-hidden">
-      {/* Animated background gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-100/20 via-purple-100/20 to-pink-100/20 dark:from-indigo-900/10 dark:via-purple-900/10 dark:to-pink-900/10 animate-gradient-shift bg-[length:200%_200%] pointer-events-none" />
+    <div className="flex h-screen bg-slate-100 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900 dark:bg-gradient-to-br transition-colors relative overflow-hidden">
+      {/* Subtle background texture (only in dark mode to avoid light-mode camouflage) */}
+      <div className="absolute inset-0 hidden dark:block bg-gradient-to-br from-indigo-900/10 via-purple-900/10 to-pink-900/10 animate-gradient-shift bg-[length:200%_200%] pointer-events-none" />
 
       {/* Top status bar */}
       <div className="absolute top-3 right-4 z-20 flex items-center gap-3">
