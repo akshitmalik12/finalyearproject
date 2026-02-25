@@ -1246,9 +1246,11 @@ export default function Chat() {
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
-                        p: ({ children }) => <p className="mb-3 last:mb-0 text-gray-700 dark:text-gray-300 leading-relaxed">{children}</p>,
-                        strong: ({ children }) => <strong className="font-bold text-gray-900 dark:text-gray-100">{children}</strong>,
-                        em: ({ children }) => <em className="italic text-gray-600 dark:text-gray-400">{children}</em>,
+                        p: ({ children }) => <p className={`mb-3 last:mb-0 leading-relaxed font-medium ${message.role === 'user' ? 'text-white' : 'text-gray-800 dark:text-gray-200'}`}>{children}</p>,
+                        strong: ({ children }) => <strong className={`font-extrabold ${message.role === 'user' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{children}</strong>,
+                        em: ({ children }) => <em className={`italic ${message.role === 'user' ? 'text-indigo-100' : 'text-gray-700 dark:text-gray-300'}`}>{children}</em>,
+                        
+                        // ... leave the rest of the code as it is (code, pre, ul, etc.)
                         code: ({ inline, children }) => 
                           inline ? (
                             <code className={`px-2 py-1 rounded-md text-sm font-mono ${
