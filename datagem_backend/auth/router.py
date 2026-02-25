@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import database, crud, models
 from pydantic import BaseModel, EmailStr
+# 1. Move the import to the top of the file
+from .email import send_welcome_email 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -25,9 +27,12 @@ def signup(user_data: UserCreate, db: Session = Depends(database.get_db)):
     new_user = models.User(
         email=user_data.email,
         full_name=user_data.full_name,
-        hashed_password=user_data.password # Note: Ensure your crud.create_user handles hashing
+        hashed_password=user_data.password 
     )
     user = crud.create_user(db=db, user=new_user)
+    
+    # --- TRIGGER WELCOME EMAIL ---
+    send_welcome_email(user.email, user.full_name)
     
     # Return token AND user data immediately to prevent frontend "stuck" state
     return {
@@ -40,6 +45,7 @@ def signup(user_data: UserCreate, db: Session = Depends(database.get_db)):
         }
     }
 
+# 2. Fixed the stray '}' and added the missing '@'
 @router.post("/login")
 def login(credentials: UserLogin, db: Session = Depends(database.get_db)):
     user = crud.get_user_by_email(db, email=credentials.email)
