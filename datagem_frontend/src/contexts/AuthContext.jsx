@@ -25,9 +25,10 @@ export const AuthProvider = ({ children }) => {
           setUser(userData);
           setToken(storedToken);
         } catch (error) {
-          // Token is invalid, clear it
+          console.error('Session initialization failed:', error);
           localStorage.removeItem('token');
           setToken(null);
+          setUser(null);
         }
       }
       setLoading(false);
@@ -39,11 +40,20 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const data = await authAPI.login(email, password);
+      
+      // Save session info
       localStorage.setItem('token', data.access_token);
       setToken(data.access_token);
       
-      const userData = await authAPI.getMe();
-      setUser(userData);
+      // Use user data from the response immediately
+      if (data.user) {
+        setUser(data.user);
+      } else {
+        // Fallback if backend didn't send user object
+        const userData = await authAPI.getMe();
+        setUser(userData);
+      }
+      
       return { success: true };
     } catch (error) {
       console.error('Login error:', error);
@@ -52,46 +62,44 @@ export const AuthProvider = ({ children }) => {
       if (error.response) {
         errorMessage = error.response.data?.detail || error.response.data?.message || `Server error: ${error.response.status}`;
       } else if (error.request) {
-        errorMessage = 'Cannot connect to server. Please make sure the backend is running on the same host (port 8000).';
-      } else if (error.message) {
+        errorMessage = 'Cannot connect to server. Please check your backend.';
+      } else {
         errorMessage = error.message;
-      } else if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
-        errorMessage = 'Network error. Please check if the backend server is running and CORS is configured.';
       }
       
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      return { success: false, error: errorMessage };
     }
   };
 
   const signup = async (email, password, fullName) => {
     try {
-      await authAPI.signup(email, password, fullName);
-      // After signup, automatically log in
-      return await login(email, password);
+      // Use return data from signup to log in automatically
+      const data = await authAPI.signup(email, password, fullName);
+      
+      localStorage.setItem('token', data.access_token);
+      setToken(data.access_token);
+      
+      if (data.user) {
+        setUser(data.user);
+      } else {
+        const userData = await authAPI.getMe();
+        setUser(userData);
+      }
+      
+      return { success: true };
     } catch (error) {
       console.error('Signup error:', error);
       let errorMessage = 'Signup failed';
       
       if (error.response) {
-        // Server responded with error
         errorMessage = error.response.data?.detail || error.response.data?.message || `Server error: ${error.response.status}`;
       } else if (error.request) {
-        // Request was made but no response received
-        errorMessage = 'Cannot connect to server. Please make sure the backend is running on the same host (port 8000).';
-      } else if (error.message) {
-        // Something else happened
+        errorMessage = 'Cannot connect to server. Please check your backend.';
+      } else {
         errorMessage = error.message;
-      } else if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
-        errorMessage = 'Network error. Please check if the backend server is running and CORS is configured.';
       }
       
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      return { success: false, error: errorMessage };
     }
   };
 
@@ -107,4 +115,3 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-

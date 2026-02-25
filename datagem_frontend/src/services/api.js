@@ -1,10 +1,6 @@
 import axios from 'axios';
 
-// Determine backend base URL:
-// - Prefer VITE_API_BASE_URL if set (for deployed/staging environments)
-// - Otherwise, use the current hostname with port 8000 so that
-//   LAN users hitting the frontend via http://192.168.x.x:5173
-//   will correctly talk to http://192.168.x.x:8000 instead of localhost.
+// Determine backend base URL
 export const getApiBaseUrl = () => {
   const envUrl = import.meta.env?.VITE_API_BASE_URL;
   if (envUrl) return envUrl;
@@ -28,9 +24,13 @@ const api = axios.create({
   },
 });
 
-// Request interceptor (no auth needed)
+// Request interceptor to add the auth token to every request
 api.interceptors.request.use(
   (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => {
@@ -38,11 +38,10 @@ api.interceptors.request.use(
   }
 );
 
-// Add response interceptor for better error handling
+// Response interceptor for better error handling
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Log error for debugging
     if (error.code === 'ERR_NETWORK') {
       console.error('Network error - Backend may not be running or CORS not configured');
     }
@@ -50,10 +49,29 @@ api.interceptors.response.use(
   }
 );
 
+// --- MISSING AUTH API ADDED HERE ---
+export const authAPI = {
+  login: async (email, password) => {
+    const response = await api.post('/auth/login', { email, password });
+    return response.data;
+  },
+  signup: async (email, password, fullName) => {
+    const response = await api.post('/auth/signup', { 
+      email, 
+      password, 
+      full_name: fullName 
+    });
+    return response.data;
+  },
+  getMe: async () => {
+    const response = await api.get('/auth/me');
+    return response.data;
+  },
+};
+
 // Chat API
 export const chatAPI = {
   streamChat: async (prompt, imageFile = null, dataset = null) => {
-    // Use /chat endpoint (no auth required)
     try {
       const requestBody = { message: prompt };
       if (dataset && Array.isArray(dataset) && dataset.length > 0) {
@@ -64,58 +82,30 @@ export const chatAPI = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify(requestBody),
-      }).catch((networkError) => {
-        // Handle network-level errors (CORS, connection refused, etc.)
-        console.error('Network fetch error:', networkError);
-        throw new Error(
-          `Failed to fetch: ${
-            networkError.message ||
-            `Cannot connect to backend. Make sure it's running on ${API_BASE_URL}`
-          }`,
-        );
       });
 
       if (!response.ok) {
         let errorText = '';
-        try {
-          errorText = await response.text();
-        } catch (e) {
-          // Ignore error reading response
-        }
+        try { errorText = await response.text(); } catch (e) {}
         
         if (response.status === 401) {
           throw new Error('Server authentication error. Please try again.');
-        } else if (response.status === 500) {
-          throw new Error(`Server error: ${errorText || 'Internal server error'}`);
-        } else if (response.status === 404) {
-          throw new Error('Chat endpoint not found. Please check if the backend is running correctly.');
-        } else {
-          throw new Error(`Failed to stream chat response: ${response.status} ${response.statusText}. ${errorText}`);
         }
+        throw new Error(`Error: ${response.status} ${errorText}`);
       }
 
       if (!response.body) {
-        throw new Error('Response body is null - the server did not return a streamable response.');
+        throw new Error('Response body is null');
       }
 
       return response.body;
     } catch (fetchError) {
-      // Re-throw if it's already a proper Error with message
-      if (fetchError instanceof Error && fetchError.message) {
-        throw fetchError;
-      }
-      // Handle other types of errors
-      throw new Error(
-        `Network error: ${
-          fetchError.message ||
-          `Failed to connect to backend. Please ensure the backend is running on ${API_BASE_URL}`
-        }`,
-      );
+      throw new Error(fetchError.message || 'Failed to connect to backend');
     }
   },
 };
 
 export default api;
-

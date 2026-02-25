@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from database.database import engine, Base
 from database import models as db_models
 from chat import chat
+from auth.router import router as auth_router  # 1. Import the auth router
 from chat.agent import CURRENT_KEY_INDEX, GEMINI_API_KEYS, LAST_QUOTA_ERROR
 
 # Load environment variables early
@@ -77,6 +78,7 @@ class CORSOptionsMiddleware(BaseHTTPMiddleware):
 app.add_middleware(CORSOptionsMiddleware)
 
 # "Plug in" the routers
+app.include_router(auth_router)  # 2. Register the auth router (handles /auth/signup and /auth/login)
 app.include_router(chat.router, prefix="/chat", tags=["Chat"])
 
 @app.get("/", tags=["Root"])
