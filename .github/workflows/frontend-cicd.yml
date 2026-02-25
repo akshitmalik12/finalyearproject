@@ -1,0 +1,50 @@
+name: DataGem Frontend CI
+
+# 1. When does this run? Every time you push to the 'main' branch
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'datagem_frontend/**' # Only run if frontend files changed
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'datagem_frontend/**'
+
+jobs:
+  # --- CONTINUOUS INTEGRATION (BUILD & TEST) ---
+  build-and-check:
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./datagem_frontend
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Standard stable Node version
+          cache: 'npm'
+          cache-dependency-path: ./datagem_frontend/package-lock.json
+
+      - name: Install Dependencies
+        run: npm install
+
+      # - name: Run Linter (Optional - uncomment if you use ESLint)
+      #   run: npm run lint
+
+      - name: Build Application
+        # This checks if your Vite app successfully compiles without errors
+        run: npm run build
+        env:
+          # We provide a dummy URL just so the build doesn't fail if it requires this variable
+          VITE_API_BASE_URL: "https://datagem-backend.onrender.com"
+
+  # Note: We do NOT need a deployment step here. 
+  # Vercel handles the CD (Continuous Deployment) automatically the moment you push to GitHub!
